@@ -27,7 +27,6 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/booking_app?schema=public
     volumes:
       - ./server:/app
-      - /app/node_modules
     depends_on:
       - db
 

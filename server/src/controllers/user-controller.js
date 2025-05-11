@@ -8,7 +8,7 @@ export const getUserInfo = async (req, res) => {
     const userId = req.params.id;
 
     try {
-        const result = await query('SELECT * FROM "User" WHERE "userID" = $1', [userId]);
+        const result = await query('SELECT * FROM "User" WHERE "id" = $1', [userId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "User not found" });
@@ -17,7 +17,7 @@ export const getUserInfo = async (req, res) => {
         const user = result.rows[0];
 
         const userInfo = {
-            userId: user.userID,
+            userId: user.id,
             email: user.email,
             phoneNumber: user.phoneNumber
         };
@@ -34,7 +34,7 @@ export const getUserInfo = async (req, res) => {
 
 export const getUserList = async (req, res) => {
     try {
-        const result = await query('SELECT "userID", "email", "phoneNumber", "createdAt", "updatedAt" FROM "User"');
+        const result = await query('SELECT "id", "email", "phoneNumber", "createdAt", "updatedAt" FROM "User"');
         return res.status(200).json(result.rows);
     } catch (error) {
         console.error('Error in getUserList:', error);
@@ -53,7 +53,7 @@ export const changeInformation = async (req, res) => {
 
         if (email) {
             const existingUserResult = await query(
-                'SELECT * FROM "User" WHERE "email" = $1 AND "userID" != $2',
+                'SELECT * FROM "User" WHERE "email" = $1 AND "id" != $2',
                 [email, userId]
             );
 
@@ -78,7 +78,7 @@ export const changeInformation = async (req, res) => {
 
         updateQuery += updateFields.join(', ');
         queryParams.push(userId);
-        updateQuery += ` WHERE "userID" = $${queryParams.length} RETURNING *`;
+        updateQuery += ` WHERE "id" = $${queryParams.length} RETURNING *`;
 
         const result = await query(updateQuery, queryParams);
 
@@ -89,7 +89,7 @@ export const changeInformation = async (req, res) => {
         return res.status(200).json({ 
             message: "User updated successfully", 
             user: {
-                userId: result.rows[0].userID,
+                userId: result.rows[0].id,
                 email: result.rows[0].email,
                 phoneNumber: result.rows[0].phoneNumber
             }
@@ -123,7 +123,7 @@ export const createUser = async (req, res) => {
         // Return the generated password in the response instead of sending an email
         return res.status(200).json({
             message: "User created successfully", 
-            data: createdUser.userID,
+            data: createdUser.id,
             temporaryPassword: password // Include the generated password in the response
         });
 

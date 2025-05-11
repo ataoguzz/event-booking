@@ -8,10 +8,10 @@ export default function useSignup() {
     const [error, setError] = useState();
     const api = new APICore();
 
-    const signup = async ({first_name, last_name, email, password, school, city, priorityScore, role}) => {
+    const signup = async ({email, password, phoneNumber}) => {
         try {
             const path = "/api/auth/signup";
-            const response = await api.post(`${path}`, {first_name, last_name, email, password, school, city, priorityScore, role});
+            const response = await api.post(`${path}`, {email, password, phoneNumber});
             setUser(response.data.user);
             setAuthorization(response.data.token);
         } catch (error) {

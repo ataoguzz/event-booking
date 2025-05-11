@@ -2,7 +2,7 @@
 
 -- User table
 CREATE TABLE IF NOT EXISTS "User" (
-  "userID" SERIAL PRIMARY KEY,
+  "id" SERIAL PRIMARY KEY,
   "email" VARCHAR(255) UNIQUE NOT NULL,
   "password" VARCHAR(255) NOT NULL,
   "phoneNumber" VARCHAR(20),
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS "Booking" (
   "userId" INTEGER NOT NULL,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY ("userId") REFERENCES "User" ("userID")
+  FOREIGN KEY ("userId") REFERENCES "User" ("id")
 );
 
 -- Token table for password reset
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "Token" (
   "userId" INTEGER NOT NULL,
   "token" VARCHAR(255) NOT NULL,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY ("userId") REFERENCES "User" ("userID")
+  FOREIGN KEY ("userId") REFERENCES "User" ("id")
 );
 
 -- Function to automatically update the updatedAt timestamp
