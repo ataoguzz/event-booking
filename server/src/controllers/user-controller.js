@@ -1,8 +1,5 @@
 import bcryptjs from "bcryptjs";
-import generateRandomPassword from "../utils/password-generator.js";
 import { query } from "../utils/db.js";
-
-
 
 export const getUserInfo = async (req, res) => {
     const userId = req.params.id;
