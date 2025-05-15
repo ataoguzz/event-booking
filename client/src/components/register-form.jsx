@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Link } from "react-router-dom"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group"
 
 export default function RegisterForm() {
     const [formData, setFormData] = useState({
@@ -32,8 +32,8 @@ export default function RegisterForm() {
     }
 
     return (
-        <div className="flex justify-center items-center min-h-[70vh]">
-            <Card className="w-full max-w-md">
+        <div className="flex justify-center items-center min-h-[70vh] bg-white p-4">
+            <Card className="w-full max-w-md bg-white">
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
                 </CardHeader>
