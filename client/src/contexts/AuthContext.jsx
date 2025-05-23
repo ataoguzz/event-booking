@@ -14,6 +14,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await authService.getCurrentUser(); 
       if (currentUser) {
         setUser(currentUser);
+        console.log("currentUser", currentUser); // FOR DEBUGGING AND DEVELOPMENT
         setIsAuthenticated(true);
       } else {
         setUser(null);
@@ -38,6 +39,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authService.login(credentials); 
       setUser(data.user);
+      console.log("currentUser", currentUser); // FOR DEBUGGING AND DEVELOPMENT
       setIsAuthenticated(true);
       return data; 
     } catch (error) {
@@ -52,6 +54,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authService.register(userData); 
       setUser(data.user);
+      console.log("currentUser", currentUser); // FOR DEBUGGING AND DEVELOPMENT
       setIsAuthenticated(true);
       return data;
     } catch (error) {
