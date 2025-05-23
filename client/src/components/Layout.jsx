@@ -4,8 +4,8 @@ export default function Layout({ children }) {
     return (
         <>
             <Navbar />
-            <div className="w-screen h-screen bg-auto bg-center">
-            <div className="pt-16">{children}</div>
+            <div className="w-screen min-h-screen bg-white">
+                <div className="pt-16">{children}</div>
             </div>
         </>
     )
