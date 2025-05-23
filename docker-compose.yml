@@ -39,14 +39,6 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=booking_app
-    # Initialize database with schema
-    command: >
-      bash -c "
-        docker-entrypoint.sh postgres &
-        sleep 10
-        psql -U postgres -d booking_app -f /docker-entrypoint-initdb.d/schema.sql
-        wait
-      "
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/src/utils/schema.sql:/docker-entrypoint-initdb.d/schema.sql

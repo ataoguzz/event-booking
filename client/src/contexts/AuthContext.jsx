@@ -34,7 +34,6 @@ export const AuthProvider = ({ children }) => {
     verifyAuthStatus(); 
   }, [verifyAuthStatus]);
 
-
   const login = async (credentials) => {
     try {
       const data = await authService.login(credentials); 
@@ -63,13 +62,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout function
   const logout = async () => {
-    await authService.logout(); // Clears token and calls backend
+    await authService.logout();
     setUser(null);
     setIsAuthenticated(false);
-
   };
+
+  const refreshUser = useCallback(async () => {
+    if (isAuthenticated) {
+      await verifyAuthStatus();
+    }
+  }, [isAuthenticated, verifyAuthStatus]);
 
   const contextValue = {
     user,
@@ -78,7 +81,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    verifyAuthStatus, 
+    verifyAuthStatus,
+    refreshUser, 
   };
 
   return (

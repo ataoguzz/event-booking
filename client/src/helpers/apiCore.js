@@ -1,4 +1,3 @@
-import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 
 const API_URL = `http://localhost:3001/api`; 
@@ -46,6 +45,8 @@ axiosInstance.interceptors.response.use(
             switch (status) {
                 case 401:
                     customError.message = data?.message || "Authentication failed. Please check your credentials or token.";
+                    // Clear expired/invalid token
+                    localStorage.removeItem(AUTH_SESSION_KEY);
                     break;
                 case 403:
                     customError.message = data?.message || "Access Forbidden: You do not have permission to access this resource.";
@@ -65,7 +66,6 @@ axiosInstance.interceptors.response.use(
     }
 );
 
-
 class apiClient {
     get = (url, params) => {
         return axiosInstance.get(url, { params: params });
@@ -83,27 +83,6 @@ class apiClient {
         return axiosInstance.delete(url, config);
     };
 
-    isUserAuthenticated = () => {
-        const token = getTokenFromStorage();
-        if (!token) {
-            return false;
-        }
-        try {
-            const decoded = jwtDecode(token);
-            const currentTime = Date.now() / 1000;
-            if (decoded.exp < currentTime) {
-                console.warn("Access token expired (client-side check)");
-                // localStorage.removeItem(AUTH_SESSION_KEY); // Optionally clear expired token
-                return false;
-            }
-            return true;
-        } catch (e) {
-            console.error("Failed to decode token:", e);
-            // localStorage.removeItem(AUTH_SESSION_KEY); // Token is invalid
-            return false;
-        }
-    };
-
     storeToken = (token) => {
         if (token) {
             localStorage.setItem(AUTH_SESSION_KEY, token);
@@ -114,9 +93,7 @@ class apiClient {
 
     getStoredToken = () => {
         return getTokenFromStorage();
-    }
-
-
+    };
 }
 
 export default new apiClient(); 

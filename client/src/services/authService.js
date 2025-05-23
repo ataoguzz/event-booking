@@ -1,9 +1,7 @@
 // client/src/services/authService.js
 import apiClient from '../helpers/apiCore.js';
-import { jwtDecode } from "jwt-decode"; 
 
 const AUTH_SESSION_KEY = "authToken"; 
-
 
 const storeToken = (token) => {
   if (token) {
@@ -13,11 +11,9 @@ const storeToken = (token) => {
   }
 };
 
-
 const getStoredToken = () => {
   return localStorage.getItem(AUTH_SESSION_KEY);
 };
-
 
 const register = async (userData) => {
   try {
@@ -32,7 +28,6 @@ const register = async (userData) => {
   }
 };
 
-
 const login = async (credentials) => {
   try {
     const response = await apiClient.post('/auth/login', credentials);
@@ -46,7 +41,6 @@ const login = async (credentials) => {
   }
 };
 
-
 const logout = async () => {
   storeToken(null); 
   try {
@@ -56,16 +50,14 @@ const logout = async () => {
   }
 };
 
-
 const getCurrentUser = async () => {
   const token = getStoredToken();
-  if (!token || !isTokenValid(token)) { 
-    if (token) storeToken(null); 
+  if (!token) { 
     return null;
   }
 
   try {
-    const response = await apiClient.get('/auth/me');
+    const response = await apiClient.get('/auth/current-user');
     return response.data; 
   } catch (error) {
     console.error('AuthService: Failed to fetch current user', error.message);
@@ -76,27 +68,6 @@ const getCurrentUser = async () => {
   }
 };
 
-
-const isTokenValid = (token) => {
-  const currentToken = token || getStoredToken();
-  if (!currentToken) {
-    return false;
-  }
-  try {
-    const decoded = jwtDecode(currentToken);
-    const currentTime = Date.now() / 1000; 
-    if (decoded.exp < currentTime) {
-      console.warn("AuthService: Token expired (client-side check).");
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error("AuthService: Failed to decode token.", e);
-    return false; 
-  }
-};
-
-
 const authService = {
   register,
   login,
@@ -104,7 +75,6 @@ const authService = {
   getCurrentUser,
   getStoredToken, 
   storeToken, 
-  isTokenValid, 
 };
 
 export default authService;

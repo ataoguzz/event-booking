@@ -1,24 +1,22 @@
-import {validationResult} from "express-validator";
+// server/controllers/authController.js
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from "dotenv";
-import crypto from "node:crypto";
-import { query, getClient } from "../utils/db.js";
+import { query, getClient } from "../utils/db.js"; // Ensure path is correct
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const generateToken = (userId, role) => {
-    return jwt.sign({ userId, role }, process.env.JWT_SECRET, {
+const generateToken = (accountId, role) => {
+    return jwt.sign({ accountId: accountId, role: role }, JWT_SECRET, {
       expiresIn: '1d',
     });
-  };
+};
 
-
-export const registerUser = async (req, res) => {
+export const registerUser = async (req, res, next) => {
     const { email, password, full_name, role = 'attendee' } = req.body;
-  
+
     if (!email || !password || !full_name) {
       return res.status(400).json({ message: 'Please provide email, password, and full name.' });
     }
@@ -29,124 +27,249 @@ export const registerUser = async (req, res) => {
     if (!validRoles.includes(role)) {
       return res.status(400).json({ message: 'Invalid user role specified.' });
     }
-  
+
     const client = await getClient();
-  
+
     try {
       await client.query('BEGIN');
-  
-      const userExistsResult = await client.query('SELECT email FROM users WHERE email = $1', [email.toLowerCase()]);
-      if (userExistsResult.rows.length > 0) {
+
+      const accountExistsResult = await client.query('SELECT email FROM accounts WHERE email = $1', [email.toLowerCase()]);
+      if (accountExistsResult.rows.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ message: 'User with this email already exists.' });
+        return res.status(409).json({ message: 'Account with this email already exists.' });
       }
-  
+
       const salt = await bcrypt.genSalt(10);
       const password_hash = await bcrypt.hash(password, salt);
-  
-      const newUserQuery = `
-        INSERT INTO users (email, password_hash, full_name, role)
-        VALUES ($1, $2, $3, $4)
-        RETURNING user_id, email, full_name, role, avatar_url;
+
+      const newAccountQuery = `
+        INSERT INTO accounts (email, password_hash, role)
+        VALUES ($1, $2, $3)
+        RETURNING account_id, email, role;
       `;
-      const newUserResult = await client.query(newUserQuery, [email.toLowerCase(), password_hash, full_name, role]);
-      const newUser = newUserResult.rows[0];
-  
-      const walletQuery = `
-        INSERT INTO wallets (user_id, balance)
-        VALUES ($1, $2)
-        RETURNING balance;
-      `;
-      const walletResult = await client.query(walletQuery, [newUser.user_id, 0.00]);
-  
-      if (newUser.role === 'organizer') {
-        const organizerProfileQuery = `
-          INSERT INTO organizer_profiles (user_id, display_name)
-          VALUES ($1, $2);
+      const newAccountResult = await client.query(newAccountQuery, [email.toLowerCase(), password_hash, role]);
+      const newAccount = newAccountResult.rows[0];
+
+      let userProfileSpecifics = {};
+      let balance = null;
+      let following_count = null;
+
+      if (role === 'attendee') {
+        const attendeeQuery = `
+          INSERT INTO attendees (account_id, full_name, balance, following_count)
+          VALUES ($1, $2, $3, $4) 
+          RETURNING full_name, balance, following_count;
         `;
-        await client.query(organizerProfileQuery, [newUser.user_id, newUser.full_name]);
+        const attendeeResult = await client.query(attendeeQuery, [newAccount.account_id, full_name, 0.00, 0]);
+        userProfileSpecifics.full_name = attendeeResult.rows[0].full_name;
+        balance = parseFloat(attendeeResult.rows[0].balance);
+        following_count = parseInt(attendeeResult.rows[0].following_count, 10);
+      } else if (role === 'organizer') {
+        const organizerQuery = `
+          INSERT INTO organizers (account_id, display_name) 
+          VALUES ($1, $2)
+          RETURNING display_name, bio, avg_rating, followers_count;
+        `;
+        const organizerResult = await client.query(organizerQuery, [newAccount.account_id, full_name]);
+        userProfileSpecifics = { ...organizerResult.rows[0] };
+        userProfileSpecifics.full_name = organizerResult.rows[0].display_name;
+      } else if (role === 'admin') {
+        const adminQuery = `INSERT INTO admins (account_id) VALUES ($1);`;
+        await client.query(adminQuery, [newAccount.account_id]);
+        userProfileSpecifics.full_name = "Administrator";
       }
-      
-  
+
       await client.query('COMMIT');
-  
-      const token = generateToken(newUser.user_id, newUser.role);
-  
+
+      const token = generateToken(newAccount.account_id, newAccount.role);
+
+      const responseUser = {
+        account_id: newAccount.account_id,
+        email: newAccount.email,
+        role: newAccount.role,
+        full_name: userProfileSpecifics.full_name,
+        display_name: userProfileSpecifics.display_name,
+        ...(role === 'organizer' && {
+            bio: userProfileSpecifics.bio,
+            avg_rating: userProfileSpecifics.avg_rating,
+            followers_count: userProfileSpecifics.followers_count,
+        }),
+        ...(role === 'attendee' && {
+            following_count: following_count,
+        }),
+        balance: balance,
+      };
+
       res.status(201).json({
-        message: 'User registered successfully.',
+        message: 'Account registered successfully.',
         token,
-        user: {
-          ...newUser,
-          balance: parseFloat(walletResult.rows[0].balance),
-        },
+        user: responseUser,
       });
-  
+
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Registration Controller Error:', error);
-      res.status(500).json({ message: 'Server error during registration.' });
+      next(error);
     } finally {
       client.release();
     }
 };
 
 
-export const loginUser = async (req, res) => {
+export const loginUser = async (req, res, next) => {
     const { email, password } = req.body;
-  
+
     if (!email || !password) {
       return res.status(400).json({ message: 'Please provide both email and password.' });
     }
-  
+
     try {
-      const userQuery = `
-        SELECT u.user_id, u.email, u.full_name, u.password_hash, u.role, u.avatar_url, w.balance
-        FROM users u
-        LEFT JOIN wallets w ON u.user_id = w.user_id
-        WHERE u.email = $1;
+      const accountAuthQuery = `
+        SELECT account_id, email, password_hash, role
+        FROM accounts
+        WHERE email = $1;
       `;
-      const userResult = await query(userQuery, [email.toLowerCase()]);
-  
-      if (userResult.rows.length === 0) {
+      const accountAuthResult = await query(accountAuthQuery, [email.toLowerCase()]);
+
+      if (accountAuthResult.rows.length === 0) {
         return res.status(401).json({ message: 'Invalid credentials.' });
       }
-  
-      const user = userResult.rows[0];
-      const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
-  
+
+      const accountAuthData = accountAuthResult.rows[0];
+      const isPasswordMatch = await bcrypt.compare(password, accountAuthData.password_hash);
+
       if (!isPasswordMatch) {
         return res.status(401).json({ message: 'Invalid credentials.' });
       }
-  
-      const token = generateToken(user.user_id, user.role);
-  
-      const userResponse = {
-        user_id: user.user_id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role,
-        avatar_url: user.avatar_url,
-        balance: user.balance !== null ? parseFloat(user.balance) : 0.00,
+
+      const accountId = accountAuthData.account_id;
+      const role = accountAuthData.role;
+      let userProfile = {
+        account_id: accountId,
+        email: accountAuthData.email,
+        role: role,
+        balance: null,
+        following_count: null,
       };
-  
+
+      if (role === 'attendee') {
+        const profileRes = await query('SELECT full_name, balance, following_count FROM attendees WHERE account_id = $1', [accountId]);
+        if (profileRes.rows.length > 0) {
+            userProfile.full_name = profileRes.rows[0].full_name;
+            userProfile.balance = parseFloat(profileRes.rows[0].balance);
+            userProfile.following_count = parseInt(profileRes.rows[0].following_count, 10);
+        } else {
+            userProfile.full_name = "N/A";
+        }
+      } else if (role === 'organizer') {
+        const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count FROM organizers WHERE account_id = $1', [accountId]);
+        if (profileRes.rows.length > 0) {
+            userProfile = { ...userProfile, ...profileRes.rows[0] };
+            userProfile.full_name = profileRes.rows[0].display_name;
+        } else {
+            userProfile.full_name = "Organizer N/A";
+        }
+      } else if (role === 'admin') {
+        userProfile.full_name = "Administrator";
+      }
+
+      const token = generateToken(accountId, role);
+
+      const finalUserResponse = {
+        account_id: userProfile.account_id,
+        email: userProfile.email,
+        role: userProfile.role,
+        full_name: userProfile.full_name,
+        ...(role === 'attendee' && {
+            balance: userProfile.balance,
+            following_count: userProfile.following_count,
+        }),
+        ...(role === 'organizer' && {
+            display_name: userProfile.display_name,
+            bio: userProfile.bio,
+            avg_rating: userProfile.avg_rating,
+            followers_count: userProfile.followers_count,
+        }),
+      };
+
       res.status(200).json({
         message: 'Login successful.',
         token,
-        user: userResponse,
+        user: finalUserResponse,
       });
-  
+
     } catch (error) {
       console.error('Login Controller Error:', error);
-      res.status(500).json({ message: 'Server error during login.' });
+      next(error);
     }
 };
 
 
+export const getCurrentUser = async (req, res, next) => {
+  const accountId = req.user?.accountId;
+  const role = req.user?.role;
+
+  if (!accountId || !role) {
+      return res.status(401).json({ message: 'Not authorized, user identification missing.' });
+  }
+
+  try {
+      let userProfile = {
+          account_id: accountId,
+          role: role,
+          balance: null,
+          following_count: null, 
+      };
+
+      const accountEmailResult = await query('SELECT email FROM accounts WHERE account_id = $1', [accountId]);
+      if (accountEmailResult.rows.length === 0) {
+          return res.status(404).json({ message: 'Account not found for token.' });
+      }
+      userProfile.email = accountEmailResult.rows[0].email;
+
+      if (role === 'attendee') {
+          const profileRes = await query('SELECT full_name, balance, following_count FROM attendees WHERE account_id = $1', [accountId]);
+          if (profileRes.rows.length > 0) {
+              userProfile.full_name = profileRes.rows[0].full_name;
+              userProfile.balance = parseFloat(profileRes.rows[0].balance);
+              userProfile.following_count = parseInt(profileRes.rows[0].following_count, 10);
+          } else {
+               userProfile.full_name = "N/A";
+          }
+      } else if (role === 'organizer') {
+          const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count FROM organizers WHERE account_id = $1', [accountId]);
+          if (profileRes.rows.length > 0) {
+              userProfile = { ...userProfile, ...profileRes.rows[0] };
+              userProfile.full_name = profileRes.rows[0].display_name;
+          } else {
+              userProfile.full_name = "Organizer N/A";
+          }
+      } else if (role === 'admin') {
+          userProfile.full_name = "Administrator";
+      }
+
+      const finalUserResponse = {
+          account_id: userProfile.account_id,
+          email: userProfile.email,
+          role: userProfile.role,
+          full_name: userProfile.full_name,
+          ...(role === 'attendee' && {
+              balance: userProfile.balance,
+              following_count: userProfile.following_count,
+          }),
+          ...(role === 'organizer' && {
+              display_name: userProfile.display_name,
+              bio: userProfile.bio,
+              avg_rating: userProfile.avg_rating,
+              followers_count: userProfile.followers_count,
+          }),
+      };
 
 
+      res.status(200).json(finalUserResponse);
 
-
-
-
-
-
+  } catch (error) {
+      console.error('Get Current User Error:', error);
+      next(error);
+  }
+};

@@ -6,69 +6,63 @@ CREATE TYPE event_status_enum AS ENUM ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPL
 CREATE TYPE ticket_status_enum AS ENUM ('CONFIRMED', 'CANCELLED', 'USED');
 CREATE TYPE promo_discount_type_enum AS ENUM ('PERCENT', 'FIXED');
 
-CREATE TABLE users (
-    user_id BIGSERIAL PRIMARY KEY,
+
+CREATE TABLE accounts (
+    account_id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    full_name VARCHAR(255),
     role user_role_enum NOT NULL DEFAULT 'attendee',
-    avatar_url TEXT,
     password_reset_token TEXT NULL,
     password_reset_expires_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE wallets (
-    wallet_id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE NOT NULL,
+CREATE TABLE attendees (
+    account_id BIGINT PRIMARY KEY,
+    full_name VARCHAR(255) NOT NULL,
+    following_count INT DEFAULT 0 CHECK (following_count >= 0),
     balance NUMERIC(10, 2) DEFAULT 0.00 CHECK (balance >= 0),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user
-        FOREIGN KEY(user_id)
-        REFERENCES users(user_id)
+    CONSTRAINT fk_account
+        FOREIGN KEY(account_id)
+        REFERENCES accounts(account_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE organizers (
+    account_id BIGINT PRIMARY KEY,
+    display_name VARCHAR(255) NOT NULL,
+    bio TEXT,
+    avg_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
+    followers_count INT DEFAULT 0 CHECK (followers_count >= 0),
+    CONSTRAINT fk_account
+        FOREIGN KEY(account_id)
+        REFERENCES accounts(account_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE admins (
+    account_id BIGINT PRIMARY KEY,
+    CONSTRAINT fk_account
+        FOREIGN KEY(account_id)
+        REFERENCES accounts(account_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+
 CREATE TABLE transactions (
     tx_id BIGSERIAL PRIMARY KEY,
-    wallet_id BIGINT NOT NULL,
+    attendee_account_id BIGINT NOT NULL,
     tx_type tx_type_enum NOT NULL,
     amount NUMERIC(10, 2) NOT NULL,
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_wallet
-        FOREIGN KEY(wallet_id)
-        REFERENCES wallets(wallet_id)
+    CONSTRAINT fk_attendee_account
+        FOREIGN KEY(attendee_account_id)
+        REFERENCES attendees(account_id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
-CREATE TABLE organizer_profiles (
-    organizer_id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE NOT NULL,
-    display_name VARCHAR(255),
-    bio TEXT,
-    avg_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
-    followers_count INT DEFAULT 0 CHECK (followers_count >= 0),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user
-        FOREIGN KEY(user_id)
-        REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE admin_profiles (
-    admin_id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user
-        FOREIGN KEY(user_id)
-        REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
 
 CREATE TABLE venues (
     venue_id BIGSERIAL PRIMARY KEY,
@@ -116,29 +110,30 @@ CREATE TABLE seats (
 
 CREATE TABLE venue_requests (
     request_id BIGSERIAL PRIMARY KEY,
-    organizer_id BIGINT NOT NULL,
+    organizer_account_id BIGINT NOT NULL,
     name TEXT NOT NULL,
     city TEXT,
     capacity TEXT,
     notes TEXT,
     status venue_request_status_enum DEFAULT 'PENDING',
-    admin_id BIGINT NULL,
+    admin_account_id BIGINT NULL,
     decision_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT fk_organizer
-        FOREIGN KEY(organizer_id)
-        REFERENCES organizer_profiles(organizer_id)
+        FOREIGN KEY(organizer_account_id)
+        REFERENCES organizers(account_id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_admin
-        FOREIGN KEY(admin_id)
-        REFERENCES admin_profiles(admin_id)
+        FOREIGN KEY(admin_account_id)
+        REFERENCES admins(account_id)
         ON DELETE SET NULL ON UPDATE CASCADE
 );
 
+
 CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
-    organizer_id BIGINT NOT NULL,
+    organizer_account_id BIGINT NOT NULL,
     venue_id BIGINT NOT NULL,
     category event_category_enum NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -155,8 +150,8 @@ CREATE TABLE events (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT fk_organizer
-        FOREIGN KEY(organizer_id)
-        REFERENCES organizer_profiles(organizer_id)
+        FOREIGN KEY(organizer_account_id)
+        REFERENCES organizers(account_id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_venue
         FOREIGN KEY(venue_id)
@@ -188,13 +183,13 @@ CREATE TABLE seat_pricing (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+
 CREATE TABLE tickets (
     ticket_id BIGSERIAL PRIMARY KEY,
     tx_id BIGINT NOT NULL,
     event_id BIGINT NOT NULL,
     seat_id BIGINT NOT NULL,
-    guest_first_name VARCHAR(100),
-    guest_last_name VARCHAR(100),
+    guest_full_name VARCHAR(100),
     guest_email VARCHAR(255) NULL,
     qr_token UUID DEFAULT gen_random_uuid() UNIQUE,
     pdf_url TEXT,
@@ -242,10 +237,10 @@ CREATE TABLE promo_redemptions (
     redemption_id BIGSERIAL PRIMARY KEY,
     promo_code_id INT NOT NULL,
     tx_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
+    account_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (promo_code_id, tx_id),
-    UNIQUE (promo_code_id, user_id),
+    UNIQUE (promo_code_id, account_id),
     CONSTRAINT fk_promo_code
         FOREIGN KEY(promo_code_id)
         REFERENCES promo_codes(promo_code_id)
@@ -254,50 +249,52 @@ CREATE TABLE promo_redemptions (
         FOREIGN KEY(tx_id)
         REFERENCES transactions(tx_id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_user
-        FOREIGN KEY(user_id)
-        REFERENCES users(user_id)
+    CONSTRAINT fk_account
+        FOREIGN KEY(account_id)
+        REFERENCES accounts(account_id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
 
 CREATE TABLE reviews (
     review_id BIGSERIAL PRIMARY KEY,
     event_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
+    account_id BIGINT NOT NULL,
     stars SMALLINT NOT NULL CHECK (stars BETWEEN 1 AND 5),
     body TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (event_id, user_id),
+    UNIQUE (event_id, account_id),
     CONSTRAINT fk_event
         FOREIGN KEY(event_id)
         REFERENCES events(event_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_user
-        FOREIGN KEY(user_id)
-        REFERENCES users(user_id)
+    CONSTRAINT fk_account
+        FOREIGN KEY(account_id)
+        REFERENCES accounts(account_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE follows (
-    follower_id BIGINT NOT NULL,
-    organizer_id BIGINT NOT NULL,
+    follower_account_id BIGINT NOT NULL,
+    organizer_account_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (follower_id, organizer_id),
-    CONSTRAINT fk_follower
-        FOREIGN KEY(follower_id)
-        REFERENCES users(user_id)
+    PRIMARY KEY (follower_account_id, organizer_account_id),
+    CONSTRAINT fk_follower_account
+        FOREIGN KEY(follower_account_id)
+        REFERENCES accounts(account_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_organizer_profile
-        FOREIGN KEY(organizer_id)
-        REFERENCES organizer_profiles(organizer_id)
+    CONSTRAINT fk_organizer
+        FOREIGN KEY(organizer_account_id)
+        REFERENCES organizers(account_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE INDEX idx_accounts_email ON accounts(email);
 CREATE INDEX idx_events_start_at ON events(start_at);
-CREATE INDEX idx_events_city ON venues(city);
+CREATE INDEX idx_venues_city ON venues(city);
 CREATE INDEX idx_events_category ON events(category);
-CREATE INDEX idx_tickets_user_event ON tickets(tx_id, event_id);
-CREATE INDEX idx_transactions_wallet_id ON transactions(wallet_id, created_at DESC);
+CREATE INDEX idx_tickets_tx_id ON tickets(tx_id);
+CREATE INDEX idx_tickets_event_id ON tickets(event_id);
+CREATE INDEX idx_transactions_attendee_account_id_created_at ON transactions(attendee_account_id, created_at DESC);
 CREATE INDEX idx_promo_codes_code ON promo_codes(code);
-CREATE INDEX idx_users_email ON users(email);
