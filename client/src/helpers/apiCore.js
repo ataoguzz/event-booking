@@ -1,14 +1,20 @@
-import {jwtDecode} from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 
-const API_URL = `http://localhost:3001`; // süpheli
+const API_URL = `http://localhost:3001/api`; 
 
 const axiosInstance = axios.create({
-    baseURL: `${API_URL}`,
+    baseURL: API_URL, 
     headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json" 
     }
 });
+
+const AUTH_SESSION_KEY = "authToken";
+
+const getTokenFromStorage = () => {
+    return localStorage.getItem(AUTH_SESSION_KEY);
+};
 
 axiosInstance.interceptors.request.use(
     config => {
@@ -23,121 +29,58 @@ axiosInstance.interceptors.request.use(
     }
 );
 
-// intercepting to capture errors
 axiosInstance.interceptors.response.use(
     response => {
         return response;
     },
     error => {
-        if (error && error.response) {
+        const customError = {
+            status: error.response?.status,
+            message: "An error occurred",
+            data: error.response?.data,
+            originalError: error,
+        };
+
+        if (error.response) {
             const { status, data } = error.response;
-            let message;
             switch (status) {
                 case 401:
-                    message = "Invalid credentials, please check your email/password!";
+                    customError.message = data?.message || "Authentication failed. Please check your credentials or token.";
                     break;
                 case 403:
-                    message = "Access Forbidden";
+                    customError.message = data?.message || "Access Forbidden: You do not have permission to access this resource.";
                     break;
                 case 404:
-                    message = "Sorry! The data you are looking for could not be found.";
+                    customError.message = data?.message || "Resource not found.";
                     break;
                 default:
-                    message = data?.message || error.message || "An unknown error occurred.";
+                    customError.message = data?.message || error.message || "An unknown server error occurred.";
             }
-
-            // Create a custom error object to propagate
-            const customError = {
-                status,
-                message,
-                data,
-                originalError: error,
-            };
-
-            return Promise.reject(customError); // Reject with the custom error
+        } else if (error.request) {
+            customError.message = "Network Error: Could not connect to the server.";
+        } else {
+            customError.message = error.message || "An unexpected error occurred.";
         }
-
-        // For cases where there's no response (e.g., network issues)
-        return Promise.reject({
-            message: error.message || "Network Error",
-            originalError: error,
-        });
+        return Promise.reject(customError);
     }
 );
 
-const AUTH_SESSION_KEY = "authToken";
 
-const setAuthorization = (token) => {
-    if (token) axiosInstance.defaults.headers.common["Authorization"] = "Bearer " + token;
-    else delete axiosInstance.defaults.headers.common["Authorization"];
-};
-
-const getTokenFromStorage = () => {
-    const token = localStorage.getItem(AUTH_SESSION_KEY);
-    return token ? token : null;
-};
-
-class APICore {
-
-    /**
-     * Fetches data from given url
-     */
+class apiClient {
     get = (url, params) => {
-        let response;
-        if (params) {
-            var queryString = params
-                ? Object.keys(params)
-                    .map(key => key + "=" + params[key])
-                    .join("&")
-                : "";
-            response = axiosInstance.get(`${url}?${queryString}`, params);
-        } else {
-            response = axiosInstance.get(`${url}`, params);
-        }
-        return response;
+        return axiosInstance.get(url, { params: params });
     };
 
-    /**
-     * post given data to url
-     */
     post = (url, data, config = {}) => {
-        // If data is FormData, don't set Content-Type header at all
-        if (data instanceof FormData) {
-            const token = getTokenFromStorage();
-            console.log('Token for request:', token);
-            
-            // Let the browser set the Content-Type with boundary
-            delete axiosInstance.defaults.headers['Content-Type'];
-            
-            const requestConfig = {
-                ...config,
-                headers: {
-                    ...config.headers,
-                    'Authorization': token ? `Bearer ${token}` : undefined
-                }
-            };
-            
-            console.log('Request config:', requestConfig);
-            return axiosInstance.post(url, data, requestConfig);
-        }
-        
-        // Reset Content-Type for non-FormData requests
-        axiosInstance.defaults.headers['Content-Type'] = 'application/json';
         return axiosInstance.post(url, data, config);
     };
 
-    /**
-     * Updates data
-     */
-    put = (url, data) => {
-        return axiosInstance.put(url, data);
+    put = (url, data, config = {}) => {
+        return axiosInstance.put(url, data, config);
     };
 
-    /**
-     * Deletes data
-     */
-    delete = (url, data) => {
-        return axiosInstance.delete(url, data);
+    delete = (url, config = {}) => {
+        return axiosInstance.delete(url, config);
     };
 
     isUserAuthenticated = () => {
@@ -145,30 +88,37 @@ class APICore {
         if (!token) {
             return false;
         }
-        const decoded = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
-        if (decoded.exp < currentTime) {
-            console.warn("access token expired");
-            return false;
-        } else {
+        try {
+            const decoded = jwtDecode(token);
+            const currentTime = Date.now() / 1000;
+            if (decoded.exp < currentTime) {
+                console.warn("Access token expired (client-side check)");
+                // localStorage.removeItem(AUTH_SESSION_KEY); // Optionally clear expired token
+                return false;
+            }
             return true;
+        } catch (e) {
+            console.error("Failed to decode token:", e);
+            // localStorage.removeItem(AUTH_SESSION_KEY); // Token is invalid
+            return false;
         }
-    };
-
-    getUserData = (userId) => {
-        return axiosInstance.get(`/api/user/${userId}`);
     };
 
     storeToken = (token) => {
         if (token) {
             localStorage.setItem(AUTH_SESSION_KEY, token);
-        }
-        else {
+        } else {
             localStorage.removeItem(AUTH_SESSION_KEY);
         }
     };
+
+    getStoredToken = () => {
+        return getTokenFromStorage();
+    }
+
+
 }
 
-export {APICore, setAuthorization};
+export default new apiClient(); 
 
-
+    

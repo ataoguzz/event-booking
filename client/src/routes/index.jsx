@@ -4,6 +4,10 @@ import {useAuth} from "@/contexts/AuthContext.jsx";
 
 const Login = React.lazy(() => import("../pages/Auth/Login.jsx"));
 const Signup = React.lazy(() => import("../pages/Auth/Register.jsx"));
+const Home = React.lazy(() => import("../pages/Home/Index.jsx"));
+const AttendeeHomepage = React.lazy(() => import("../pages/Home/AttendeeHomepage.jsx"));
+const OrganizerHome = React.lazy(() => import("../pages/Home/OrganizerHomepage.jsx"));
+const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx"));
 
 const loading = () => <div className=""></div>;
 
@@ -29,7 +33,7 @@ const AllRoutes = () => {
         },
         {
             path: "/home",
-            element: <LoadComponent component={Signup} />
+            element: <LoadComponent component={Home} />
         },
         {
             path: "*",

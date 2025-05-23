@@ -1,206 +1,152 @@
 import {validationResult} from "express-validator";
-import bcryptjs from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from "dotenv";
 import crypto from "node:crypto";
-import { query } from "../utils/db.js";
+import { query, getClient } from "../utils/db.js";
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "1hr";
+
+const generateToken = (userId, role) => {
+    return jwt.sign({ userId, role }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
+  };
 
 
-export const signup = async (req, res) => {
-    const validationErrors = validationResult(req)
-    if (!validationErrors.isEmpty()) {
-        return res.status(400).json({error: validationErrors})
+export const registerUser = async (req, res) => {
+    const { email, password, full_name, role = 'attendee' } = req.body;
+  
+    if (!email || !password || !full_name) {
+      return res.status(400).json({ message: 'Please provide email, password, and full name.' });
     }
-
-    const {email, password, phoneNumber} = req.body;
-
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+    const validRoles = ['attendee', 'organizer', 'admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: 'Invalid user role specified.' });
+    }
+  
+    const client = await getClient();
+  
     try {
-        // Check if user already exists
-        const existingUserResult = await query('SELECT * FROM "User" WHERE "email" = $1', [email]);
-
-        if (existingUserResult.rows.length > 0) {
-            return res.status(401).json({error: "Existing user"})
-        }
-
-        // Hash the password
-        let hashedPassword = await bcryptjs.hash(password, 12);
-
-        // Insert the new user
-        const result = await query(
-            'INSERT INTO "User" ("email", "password", "phoneNumber") VALUES ($1, $2, $3) RETURNING *',
-            [email, hashedPassword, phoneNumber]
-        );
-
-        const createdUser = result.rows[0];
-
-        // Generate JWT token
-        let token = jwt.sign({userId: createdUser.userID}, JWT_SECRET, {expiresIn: JWT_EXPIRES_IN});
-
-        return res.status(201).json({
-            user: {
-                userId: createdUser.userID,
-                email: createdUser.email,
-                phoneNumber: createdUser.phoneNumber
-            },
-            token: token
-        });
-
+      await client.query('BEGIN');
+  
+      const userExistsResult = await client.query('SELECT email FROM users WHERE email = $1', [email.toLowerCase()]);
+      if (userExistsResult.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ message: 'User with this email already exists.' });
+      }
+  
+      const salt = await bcrypt.genSalt(10);
+      const password_hash = await bcrypt.hash(password, salt);
+  
+      const newUserQuery = `
+        INSERT INTO users (email, password_hash, full_name, role)
+        VALUES ($1, $2, $3, $4)
+        RETURNING user_id, email, full_name, role, avatar_url;
+      `;
+      const newUserResult = await client.query(newUserQuery, [email.toLowerCase(), password_hash, full_name, role]);
+      const newUser = newUserResult.rows[0];
+  
+      const walletQuery = `
+        INSERT INTO wallets (user_id, balance)
+        VALUES ($1, $2)
+        RETURNING balance;
+      `;
+      const walletResult = await client.query(walletQuery, [newUser.user_id, 0.00]);
+  
+      if (newUser.role === 'organizer') {
+        const organizerProfileQuery = `
+          INSERT INTO organizer_profiles (user_id, display_name)
+          VALUES ($1, $2);
+        `;
+        await client.query(organizerProfileQuery, [newUser.user_id, newUser.full_name]);
+      }
+      
+  
+      await client.query('COMMIT');
+  
+      const token = generateToken(newUser.user_id, newUser.role);
+  
+      res.status(201).json({
+        message: 'User registered successfully.',
+        token,
+        user: {
+          ...newUser,
+          balance: parseFloat(walletResult.rows[0].balance),
+        },
+      });
+  
     } catch (error) {
-        console.error('Error in signup:', error);
-        return res.status(400).json({error: error.message});
-    }
-}
-
-export const login = async (req, res) => {
-    const validationErrors = validationResult(req)
-
-    if (!validationErrors.isEmpty()) {
-        return res.status(400).json({error: validationErrors})
-    }
-
-    const {email, password} = req.body;
-
-    try {
-        // Find user by email
-        const userResult = await query('SELECT * FROM "User" WHERE "email" = $1', [email]);
-
-        if (userResult.rows.length === 0) {
-            return res.status(401).json({error: "Invalid credentials."})
-        }
-
-        const user = userResult.rows[0];
-
-        // Compare passwords
-        let isValidPassword = await bcryptjs.compare(password, user.password);
-
-        if (!isValidPassword) {
-            return res.status(401).json({error: "Invalid credentials."})
-        }
-
-        // Generate JWT token
-        let token = jwt.sign({userId: user.userID}, JWT_SECRET, {expiresIn: JWT_EXPIRES_IN});
-
-        // Create user info object
-        const userInfo = {
-            userId: user.userID,
-            email: user.email,
-            phoneNumber: user.phoneNumber
-        }
-
-        return res.json({
-            user: userInfo,
-            token: token
-        })
-
-    } catch (error) {
-        console.error('Error in login:', error);
-        return res.status(400).json({error: error.message});
-    }
-}
-
-
-
-export const forgotPassword = async (req, res) => {
-    const email = req.body.email;
-
-    try {
-        // Find user by email
-        const userResult = await query('SELECT * FROM "User" WHERE "email" = $1', [email]);
-
-        if (userResult.rows.length === 0) {
-            return res.status(400).json({error: "User not found"});
-        }
-
-        const user = userResult.rows[0];
-
-        // Delete existing token if any
-        await query('DELETE FROM "Token" WHERE "userId" = $1', [user.userID]);
-
-        // Create new reset token
-        const resetToken = crypto.randomBytes(32).toString("hex");
-        const hash = await bcryptjs.hash(resetToken, 10);
-
-        // Save token to database
-        await query(
-            'INSERT INTO "Token" ("userId", "token") VALUES ($1, $2)',
-            [user.userID, hash]
-        );
-
-        // Create reset link
-        const link = `http://localhost:3000/auth/reset-password?token=${resetToken}&id=${user.userID}`;
-
-        // Return the reset link in the response instead of sending an email
-        res.status(201).json({
-            message: "Password reset initiated",
-            resetLink: link
-        });
-    } catch (error) {
-        console.error('Error in forgotPassword:', error);
-        return res.status(400).json({error: "Something went wrong"});
+      await client.query('ROLLBACK');
+      console.error('Registration Controller Error:', error);
+      res.status(500).json({ message: 'Server error during registration.' });
+    } finally {
+      client.release();
     }
 };
 
-export const resetPassword = async (req, res) => {
-    const userId = req.body.userId;
-    const token = req.body.token;
-    const newPassword = req.body.newPassword;
 
-    try {
-        // Find token by userId
-        const tokenResult = await query('SELECT * FROM "Token" WHERE "userId" = $1', [userId]);
-
-        if (tokenResult.rows.length === 0) {
-            return res.status(400).json({error: "Invalid or expired password reset token"});
-        }
-
-        const resetToken = tokenResult.rows[0];
-
-        // Verify token
-        const isValid = await bcryptjs.compare(token, resetToken.token);
-
-        if (!isValid) {
-            return res.status(400).json({error: "Invalid or expired password reset token"});
-        }
-
-        // Hash new password
-        const hashedPassword = await bcryptjs.hash(newPassword, 12);
-
-        // Update user password
-        await query('UPDATE "User" SET "password" = $1 WHERE "userID" = $2', [hashedPassword, userId]);
-
-        // Delete used token
-        await query('DELETE FROM "Token" WHERE "userId" = $1', [userId]);
-
-        res.status(201).json({message: "Password reset successfully."});
-    } catch (error) {
-        console.error('Error in resetPassword:', error);
-        return res.status(400).json({error: "Something went wrong"});
+export const loginUser = async (req, res) => {
+    const { email, password } = req.body;
+  
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Please provide both email and password.' });
     }
-}
-
-export const changePassword = async (req, res) => {
-    const userId = req.user.userId; // Updated to match the JWT token payload
-    const newPassword = req.body.newPassword;
-
+  
     try {
-        // Hash new password
-        const hashedPassword = await bcryptjs.hash(newPassword, 12);
-
-        // Update user password
-        const result = await query('UPDATE "User" SET "password" = $1 WHERE "userID" = $2', [hashedPassword, userId]);
-
-        if (result.rowCount === 0) {
-            return res.status(404).json({error: "User not found"});
-        }
-
-        res.status(201).json({message: "Password changed successfully."});
+      const userQuery = `
+        SELECT u.user_id, u.email, u.full_name, u.password_hash, u.role, u.avatar_url, w.balance
+        FROM users u
+        LEFT JOIN wallets w ON u.user_id = w.user_id
+        WHERE u.email = $1;
+      `;
+      const userResult = await query(userQuery, [email.toLowerCase()]);
+  
+      if (userResult.rows.length === 0) {
+        return res.status(401).json({ message: 'Invalid credentials.' });
+      }
+  
+      const user = userResult.rows[0];
+      const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
+  
+      if (!isPasswordMatch) {
+        return res.status(401).json({ message: 'Invalid credentials.' });
+      }
+  
+      const token = generateToken(user.user_id, user.role);
+  
+      const userResponse = {
+        user_id: user.user_id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        avatar_url: user.avatar_url,
+        balance: user.balance !== null ? parseFloat(user.balance) : 0.00,
+      };
+  
+      res.status(200).json({
+        message: 'Login successful.',
+        token,
+        user: userResponse,
+      });
+  
     } catch (error) {
-        console.error('Error in changePassword:', error);
-        return res.status(400).json({error: "Something went wrong"});
+      console.error('Login Controller Error:', error);
+      res.status(500).json({ message: 'Server error during login.' });
     }
-}
+};
+
+
+
+
+
+
+
+
+
+
