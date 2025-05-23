@@ -5,6 +5,7 @@ import {useAuth} from "@/contexts/AuthContext.jsx";
 const Login = React.lazy(() => import("../pages/Auth/Login.jsx"));
 const Signup = React.lazy(() => import("../pages/Auth/Register.jsx"));
 const Home = React.lazy(() => import("../pages/Home/index.jsx"));
+const EventCreatePage = React.lazy(() => import("../pages/CreateEvent/index.jsx"));
 const AttendeeHomepage = React.lazy(() => import("../pages/Home/AttendeeHomepage.jsx"));
 const OrganizerHome = React.lazy(() => import("../pages/Home/OrganizerHomepage.jsx"));
 const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx"));
@@ -30,6 +31,10 @@ const AllRoutes = () => {
                 {path: "login", element: <LoadComponent component={Login} />},
                 {path: "signup", element: <LoadComponent component={Signup} />}
             ]
+        },
+        {
+            path: "/create-event",
+            element: user ?  <LoadComponent component={EventCreatePage} /> : <Navigate to="auth/login"/>
         },
         {
             path: "/home",

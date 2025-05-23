@@ -34,20 +34,6 @@ const Navbar = () => {
             {/* Desktop Navigation */}
             <NavigationMenu className="hidden md:flex flex-grow justify-center">
               <NavigationMenuList className="flex items-center space-x-1">
-                {/* Common Home Link */}
-                <NavigationMenuItem>
-                  <NavigationMenuLink asChild>
-                    <Link
-                        to="/"
-                        className={cn(
-                            "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                        )}
-                    >
-                      Home
-                    </Link>
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-
                 {/* Attendee Navigation */}
                 {user?.role === "attendee" && (
                     <>
@@ -321,14 +307,6 @@ const Navbar = () => {
           {isMenuOpen && (
               <div className="md:hidden border-t">
                 <div className="py-2 space-y-1">
-                  <Link
-                      to="/"
-                      className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
-                      onClick={() => setIsMenuOpen(false)}
-                  >
-                    Home
-                  </Link>
-
                   {user?.role === "attendee" && (
                       <>
                         <Link
