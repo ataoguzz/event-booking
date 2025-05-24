@@ -17,17 +17,20 @@ const mapEventTypeToCategory = (eventType) => {
 
 export const createEvent = async (req, res, next) => {
 
-    if (!req.user || !req.user.accountId) {
-        console.error("Error in createEvent: req.user.accountId is missing. Ensure authentication middleware is correctly populating it.");
-        return res.status(401).json({ message: "Authentication error: User identity not found." });
-    }
-    const organizerAccountId = req.user.accountId;
-
     const {
         title, description, eventType,
         startDate, startTime, endDate, endTime,
-        venue, price, rules,
+        venue, price, rules, organizerAccountId
     } = req.body;
+
+    if (!organizerAccountId) {
+        console.error("Error in createEvent: organizerAccountId is missing from the request body.");
+        return res.status(400).json({ message: "Organizer ID is required in the request body." });
+    }
+    const parsedOrganizerAccountId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer ID format in request body." });
+    }
 
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: "At least one event image is required." });
@@ -57,7 +60,15 @@ export const createEvent = async (req, res, next) => {
 
     const client = await getClient();
     try {
-        await client.query('BEGIN'); // Start transaction
+        await client.query('BEGIN');
+
+        // Optional: Verify if the organizerAccountId from req.body actually exists in your organizers table
+        // This is a good sanity check if you are taking the ID from the body.
+        const organizerCheckResult = await client.query('SELECT account_id FROM organizers WHERE account_id = $1', [parsedOrganizerAccountId]);
+        if (organizerCheckResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: `Organizer with ID ${parsedOrganizerAccountId} not found.` });
+        }
 
         const heroImageUrl = `/uploads/${req.files[0].filename}`;
         const eventInsertQuery = `
@@ -65,10 +76,10 @@ export const createEvent = async (req, res, next) => {
                 organizer_account_id, venue_id, category, title, description, rules,
                 start_at, end_at, status, base_price, hero_image_url
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                RETURNING event_id, title, created_at, status;
+            RETURNING event_id, title, created_at, status;
         `;
         const eventInsertValues = [
-            organizerAccountId,
+            parsedOrganizerAccountId, // Using the ID directly from req.body
             venueId, category, title, description, rules || null,
             startAtIso, endAtIso, 'PUBLISHED', basePrice, heroImageUrl
         ];
@@ -85,20 +96,20 @@ export const createEvent = async (req, res, next) => {
         });
         await Promise.all(imageInsertPromises);
 
-        await client.query('COMMIT'); // Commit transaction
+        await client.query('COMMIT');
         res.status(201).json({ message: "Event created successfully!", event: newEvent });
 
     } catch (error) {
-        await client.query('ROLLBACK'); // Rollback transaction on error
+        await client.query('ROLLBACK');
         console.error('Error during event creation transaction:', error);
         if (error.code === '23503') {
-            next({ status: 400, message: `Invalid reference (e.g., venue ID not found). Details: ${error.detail}` });
+            next({ status: 400, message: `Invalid reference (e.g., organizer or venue ID not found). Details: ${error.detail}` });
         } else if (error.code === '23505' && error.constraint === 'events_title_start_key') {
             next({ status: 409, message: "An event with this title and start time already exists."});
         } else {
-            next(error); // Pass to global error handler
+            next(error);
         }
     } finally {
-        client.release(); // Release client back to the pool
+        client.release();
     }
 };

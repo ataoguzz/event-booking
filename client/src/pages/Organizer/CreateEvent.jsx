@@ -144,14 +144,11 @@ const CreateEvent = () => {
             alert("Authentication error. Please log in again.");
             return;
         }
-        if (user.role !== 'organizer') {
-            setErrors(prev => ({ ...prev, form: "Only organizers can create events." }));
-            alert("Access Denied: Only organizers can create events.");
-            return;
-        }
 
         if (!validateForm()) return;
         setIsSubmitting(true);
+        console.log("edip1");
+        console.log(user);
 
         const data = new FormData();
 
@@ -171,14 +168,14 @@ const CreateEvent = () => {
         formData.images.forEach(imageObj => {
             data.append('images', imageObj.file, imageObj.name);
         });
-
+        console.log("edip2");
         try {
             const response = await apiClient.post('/event/create', data, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log("Event created:", response.data);
             alert("Event created successfully!");
-            navigate('/organizer/my-events'); // Or to the new event's page
+            //navigate('/organizer/my-events'); // Or to the new event's page
         } catch (error) {
             console.error("Error creating event:", error);
             const errorMsg = error.data?.message || error.message || "Error creating event. Please try again.";
