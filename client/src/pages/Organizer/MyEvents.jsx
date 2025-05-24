@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; // Added useEffect
+import {useState, useEffect, useCallback} from 'react'; // Added useEffect
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -6,6 +6,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import {
+  Dialog,
+  DialogContent, DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+    DialogDescription,
+    DialogClose
+} from "@/components/ui/dialog.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Calendar, Clock, MapPin, Users, Edit, Eye, Trash2, Search, Filter, Loader2 } from 'lucide-react'; // Added Loader2
 import apiClient from '@/helpers/apiCore.js'; // Assuming this is your configured apiClient
@@ -39,39 +48,108 @@ export default function MyEvents() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await apiClient.post('/event/my-events', {organizerAccountId: user.account_id});
-        console.log(response);
-        const transformedEvents = response.data.map(event => ({
-          id: event.event_id,
-          title: event.title,
-          type: mapCategoryToType(event.category), // Map from backend 'CATEGORY' to frontend 'Type'
-          date: event.start_at ? format(parseISO(event.start_at), 'yyyy-MM-dd') : 'N/A',
-          time: event.start_at ? format(parseISO(event.start_at), 'HH:mm') : 'N/A',
-          venue: event.venue_name || 'N/A',
-          location: event.venue_city || 'N/A',
-          capacity: event.venue_capacity || 0,
-          soldTickets: event.tickets_sold || 0,
-          status: event.status ? event.status.toLowerCase() : 'unknown',
-          image: event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : 'https://via.placeholder.com/300x200?text=No+Image',
-          // Keep original backend data if needed for other operations
-          _original: event
-        }));
-        setAllFetchedEvents(transformedEvents);
-      } catch (err) {
-        console.error('Error fetching events:', err);
-        setError(err.data?.message || err.message || 'Failed to fetch events.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [selectedEventForView, setSelectedEventForView] = useState(null);
+  const [isLoadingViewDetails, setIsLoadingViewDetails] = useState(false);
 
-    fetchEvents();
-  }, [user]);
+  // State for Edit Dialog (to be implemented later)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedEventForEdit, setSelectedEventForEdit] = useState(null);
+
+  const fetchMyEvents = useCallback(async () => { // useCallback to avoid re-creating on every render
+    if (!user || !user.account_id) {
+      setAllFetchedEvents([]);
+      setIsLoading(false);
+      // setError("User not authenticated."); // Optionally set an error
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiClient.post('/event/my-events', { organizerAccountId: user.account_id });
+      const transformedEvents = response.data.map(event => ({ /* ... as before ... */
+        id: event.event_id,
+        title: event.title,
+        type: mapCategoryToType(event.category),
+        date: event.start_at ? format(parseISO(event.start_at), 'yyyy-MM-dd') : 'N/A',
+        time: event.start_at ? format(parseISO(event.start_at), 'HH:mm') : 'N/A',
+        venue: event.venue_name || 'N/A',
+        location: event.venue_city || 'N/A',
+        capacity: event.venue_capacity || 0,
+        soldTickets: event.tickets_sold || 0,
+        status: event.status ? event.status.toLowerCase() : 'unknown',
+        image: event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : 'https://via.placeholder.com/300x200?text=No+Image',
+        _original: event
+      }));
+      setAllFetchedEvents(transformedEvents);
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError(err.data?.message || err.message || 'Failed to fetch events.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]); // Depend on user object
+
+  useEffect(() => {
+    fetchMyEvents();
+  }, [fetchMyEvents]); // fetchMyEvents is now stable due to useCallback
+
+
+  const handleViewEvent = async (eventId) => {
+    setIsLoadingViewDetails(true);
+    setIsViewDialogOpen(true);
+    setSelectedEventForView(null); // Clear previous
+    try {
+      const response = await apiClient.get(`/event/${eventId}`); // API endpoint for single event
+      setSelectedEventForView(response.data);
+    } catch (err) {
+      console.error(`Error fetching details for event ${eventId}:`, err);
+      alert(`Error: ${err.data?.message || err.message || 'Failed to load event details.'}`);
+      setIsViewDialogOpen(false); // Close dialog on error
+    } finally {
+      setIsLoadingViewDetails(false);
+    }
+  };
+
+  const handleOpenEditDialog = async (event) => {
+    // For now, just log. We will implement this later.
+    console.log("Open Edit Dialog for:", event);
+    // setSelectedEventForEdit(event); // If passing basic data
+    // To fetch full data for edit:
+    // setIsLoadingEditDetails(true);
+    // setIsEditDialogOpen(true);
+    // try {
+    //   const response = await apiClient.get(`/event/${event.id}`); // Or a specific edit endpoint
+    //   setSelectedEventForEdit(response.data);
+    // } catch (err) { /* handle error */ }
+    // finally { setIsLoadingEditDetails(false); }
+    alert("Edit functionality to be implemented as a dialog.");
+  };
+
+
+  const handleDeleteEvent = async (eventId, eventTitle) => {
+    if (!window.confirm(`Are you sure you want to delete the event "${eventTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsLoading(true); // You might want a more specific loading state for delete
+    try {
+      await apiClient.delete(`/event/${eventId}`); // Matches router: DELETE /api/event/:eventId
+      alert(`Event "${eventTitle}" deleted successfully.`);
+      // Update the local state to remove the deleted event
+      setAllFetchedEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+      // Or trigger a re-fetch:
+      // setRefreshTrigger(prev => prev + 1); // And add refreshTrigger to useEffect dependency array
+    } catch (err) {
+      console.error(`Error deleting event ${eventId}:`, err);
+      setError(err.data?.message || err.message || `Failed to delete event "${eventTitle}".`);
+      alert(err.data?.message || `Failed to delete event "${eventTitle}". Please try again.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
 
   // Filter events based on search and filters
   const filteredEvents = allFetchedEvents.filter(event => {
@@ -183,46 +261,127 @@ export default function MyEvents() {
             </TabsList>
 
             <TabsContent value="all" className="mt-0">
-              <EventCards events={filteredEvents} onDeleteEvent={handleDeleteEvent}/>
+              <EventCards events={filteredEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
             </TabsContent>
 
             <TabsContent value="published" className="mt-0">
-              <EventCards events={publishedEvents} onDeleteEvent={handleDeleteEvent}/>
+              <EventCards events={publishedEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
             </TabsContent>
 
             <TabsContent value="draft" className="mt-0">
-              <EventCards events={draftEvents} onDeleteEvent={handleDeleteEvent} />
+              <EventCards events={draftEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
             </TabsContent>
           </Tabs>
         </div>
+        {/* View Event Dialog */}
+        <EventDetailsDialog
+            event={isLoadingViewDetails ? null : selectedEventForView} // Show loader or content
+            isOpen={isViewDialogOpen}
+            onClose={() => {
+              setIsViewDialogOpen(false);
+              setSelectedEventForView(null);
+            }}
+        />
+
+        {/* Edit Event Dialog (Placeholder for now) */}
+        {isEditDialogOpen && selectedEventForEdit && (
+            <Dialog open={isEditDialogOpen} onOpenChange={() => setIsEditDialogOpen(false)}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Event: {selectedEventForEdit.title}</DialogTitle>
+                  <DialogDescription>
+                    Make changes to your event details below. (Edit form UI to be built)
+                  </DialogDescription>
+                </DialogHeader>
+                {/* Edit form will go here, similar to CreateEvent but pre-filled */}
+                <p>Edit form for '{selectedEventForEdit.title}' will be here.</p>
+                <p>Current data to edit: {JSON.stringify(selectedEventForEdit._original)}</p>
+                <DialogFooter>
+                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                  <Button type="submit" form="edit-event-form">Save Changes</Button> {/* form attribute links to form id */}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+        )}
       </Layout>
   );
 }
 
+function EventDetailsDialog({ event, isOpen, onClose }) {
+  if (!event) return null;
 
-const handleDeleteEvent = async (eventId, eventTitle) => {
-  if (!window.confirm(`Are you sure you want to delete the event "${eventTitle}"? This action cannot be undone.`)) {
-    return;
-  }
+  const heroImage = event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : (event.images && event.images.length > 0 ? `${SERVER_BASE_URL}${event.images[0].url}` : "https://via.placeholder.com/800x400?text=Event+Image");
 
-  setIsLoading(true); // You might want a more specific loading state for delete
-  try {
-    await apiClient.delete(`/event/${eventId}`); // Matches router: DELETE /api/event/:eventId
-    alert(`Event "${eventTitle}" deleted successfully.`);
-    // Update the local state to remove the deleted event
-    setAllFetchedEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-    // Or trigger a re-fetch:
-    // setRefreshTrigger(prev => prev + 1); // And add refreshTrigger to useEffect dependency array
-  } catch (err) {
-    console.error(`Error deleting event ${eventId}:`, err);
-    setError(err.data?.message || err.message || `Failed to delete event "${eventTitle}".`);
-    alert(err.data?.message || `Failed to delete event "${eventTitle}". Please try again.`);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl md:text-3xl font-bold mb-1">{event.title}</DialogTitle>
+            <DialogDescription>Organized by: {event.organizer_display_name}</DialogDescription>
+            <Badge variant="outline" className="w-fit">{mapCategoryToType(event.category)}</Badge>
+          </DialogHeader>
 
-function EventCards({ events }) {
+          <div className="py-4 space-y-6">
+            <img src={heroImage} alt={event.title} className="w-full h-auto max-h-80 object-cover rounded-lg mb-4" />
+
+            <div className="grid md:grid-cols-2 gap-x-6 gap-y-3 text-sm text-muted-foreground">
+              <div className="flex items-center"><Calendar className="h-4 w-4 mr-2 text-primary" /> {format(parseISO(event.start_at), "eeee, MMMM d, yyyy")}</div>
+              <div className="flex items-center"><Clock className="h-4 w-4 mr-2 text-primary" /> {format(parseISO(event.start_at), "p")} - {format(parseISO(event.end_at), "p")}</div>
+              <div className="flex items-center col-span-1 md:col-span-2"><MapPin className="h-4 w-4 mr-2 text-primary" /> {event.venue_name} - {event.venue_address}, {event.venue_city}</div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold mb-1">About this event</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{event.description || "No description."}</p>
+            </div>
+
+            {event.rules && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">Event Rules</h3>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">{event.rules}</p>
+                </div>
+            )}
+
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Ticket Tiers</h3>
+              {event.ticket_tiers && event.ticket_tiers.length > 0 ? (
+                  <div className="space-y-2">
+                    {event.ticket_tiers.map(tier => (
+                        <div key={tier.tier_id} className="p-3 border rounded-md flex justify-between items-center text-sm">
+                          <div>
+                            <p className="font-medium">{tier.tier_name}</p>
+                            {tier.description && <p className="text-xs text-muted-foreground">{tier.description}</p>}
+                            <p className="text-xs text-muted-foreground">Quantity: {tier.quantity}</p>
+                          </div>
+                          <p className="font-semibold text-primary">${parseFloat(tier.price).toFixed(2)}</p>
+                        </div>
+                    ))}
+                  </div>
+              ) : (<p className="text-sm text-muted-foreground">No specific ticket tiers defined.</p>)}
+            </div>
+
+            {event.images && event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage.replace(SERVER_BASE_URL,'')).length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">More Images</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage.replace(SERVER_BASE_URL,'')).map(image => (
+                        <img key={image.image_id} src={`${SERVER_BASE_URL}${image.url}`} alt={image.caption || event.title} className="rounded-md object-cover aspect-square" />
+                    ))}
+                  </div>
+                </div>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+  );
+}
+
+function EventCards({ events, onViewEvent, onEditEvent, onDeleteEvent }) {
   if (events.length === 0) {
     return (
         <div className="text-center py-16 border rounded-lg bg-card">
@@ -283,21 +442,13 @@ function EventCards({ events }) {
               </CardContent>
 
               <CardFooter className="flex justify-between items-center pt-4"> {/* Added items-center */}
-                <Button variant="outline" size="sm" asChild>
-                  {/* TODO: Update link to actual event view page if different from /events/:id */}
-                  <Link to={`/event-details/${event.id}`}> {/* Assuming event details page */}
-                    <Eye size={14} className="mr-1.5" />
-                    View
-                  </Link>
+                <Button variant="outline" size="sm" onClick={() => onViewEvent(event.id)}> {/* Changed from Link */}
+                  <Eye size={14} className="mr-1.5" /> View
                 </Button>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    {/* TODO: Update link to actual event edit page */}
-                    <Link to={`/organizer/edit-event/${event.id}`}>
-                      <Edit size={14} className="mr-1.5" />
-                      Edit
-                    </Link>
+                  <Button variant="outline" size="sm" onClick={() => onEditEvent(event)}> {/* Changed from Link, pass full event for prefill */}
+                    <Edit size={14} className="mr-1.5" /> Edit
                   </Button>
 
                   <Button

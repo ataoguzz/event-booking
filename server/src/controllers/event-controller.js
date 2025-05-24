@@ -241,3 +241,58 @@ export const deleteEvent = async (req, res, next) => {
         }
     }
 };
+
+// server/controllers/event-controller.js
+
+export const getEventDetailsById = async (req, res, next) => {
+    const { eventId } = req.params;
+    if (!eventId || isNaN(parseInt(eventId))) {
+        return res.status(400).json({ message: "Valid Event ID is required." });
+    }
+    const parsedEventId = parseInt(eventId, 10);
+
+    // This route could be public, or protected by checkAuth if only logged-in users can view
+    // For now, let's make it public-facing, so no req.user check here unless desired.
+
+    const client = await getClient();
+    try {
+        // Fetch main event data and venue info
+        const eventQuery = `
+            SELECT
+                e.*, v.name as venue_name, v.address as venue_address, v.city as venue_city, v.capacity as venue_capacity, v.is_seated as venue_is_seated,
+                o.display_name as organizer_display_name, o.avatar_url as organizer_avatar_url
+            FROM events e
+            JOIN venues v ON e.venue_id = v.venue_id
+            JOIN organizers o ON e.organizer_account_id = o.account_id
+            WHERE e.event_id = $1;
+        `;
+        const eventResult = await client.query(eventQuery, [parsedEventId]);
+
+        if (eventResult.rows.length === 0) {
+            return res.status(404).json({ message: "Event not found." });
+        }
+        const eventDetails = eventResult.rows[0];
+
+        // Fetch event images
+        const imagesQuery = 'SELECT image_id, url, caption FROM event_images WHERE event_id = $1 ORDER BY image_id ASC';
+        const imagesResult = await client.query(imagesQuery, [parsedEventId]);
+        eventDetails.images = imagesResult.rows;
+
+        // Fetch event ticket tiers
+        const tiersQuery = 'SELECT tier_id, tier_name, price, quantity, description FROM event_ticket_tiers WHERE event_id = $1 ORDER BY price ASC, tier_name ASC';
+        const tiersResult = await client.query(tiersQuery, [parsedEventId]);
+        eventDetails.ticket_tiers = tiersResult.rows;
+
+        // You could also fetch how many tickets are sold per tier if needed for display:
+        // SELECT tier_id, COUNT(*) as sold_count FROM tickets WHERE event_id = $1 AND status = 'CONFIRMED' GROUP BY tier_id;
+        // And then merge this with eventDetails.ticket_tiers.
+
+        res.status(200).json(eventDetails);
+
+    } catch (error) {
+        console.error(`Error fetching details for event ${parsedEventId}:`, error);
+        next(error);
+    } finally {
+        if (client) client.release();
+    }
+};
