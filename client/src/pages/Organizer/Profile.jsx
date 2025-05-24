@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import Layout from '@/components/Layout.jsx';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card.jsx';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card.jsx';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
@@ -21,7 +21,7 @@ export default function OrganizerProfile() {
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
   // Get API base URL from the window location instead of hardcoding
@@ -30,9 +30,11 @@ export default function OrganizerProfile() {
 
   useEffect(() => {
     if (user) {
+      // Load own profile data
       setDisplayName(user.display_name || '');
       setBio(user.bio || '');
       setEmail(user.email || '');
+      setIsLoading(false);
       
       // If avatar_url is a relative URL, convert it to absolute URL
       if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
@@ -161,11 +163,11 @@ export default function OrganizerProfile() {
     }
   };
 
-  if (!user) {
+  if (isLoading) {
     return (
       <Layout>
         <div className="container mx-auto py-10">
-          <p>Loading profile information...</p>
+          <p className="text-center">Loading profile information...</p>
         </div>
       </Layout>
     );
@@ -191,7 +193,7 @@ export default function OrganizerProfile() {
                   <UserIcon className="h-12 w-12" />
                 </AvatarFallback>
               </Avatar>
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1">
                 <CardTitle className="text-2xl">{user.display_name}</CardTitle>
                 <CardDescription className="flex items-center">
                   <div className="flex items-center mr-4">
@@ -235,8 +237,8 @@ export default function OrganizerProfile() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Account Created</span>
-                <span className="font-medium">N/A</span>
+                <span className="text-muted-foreground">Total Events</span>
+                <span className="font-medium">{user.event_count || 0}</span>
               </div>
             </CardContent>
           </Card>
@@ -307,7 +309,9 @@ export default function OrganizerProfile() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleCloseEditDialog} disabled={isLoading || isUploading}>Cancel</Button>
+              <Button variant="outline" onClick={handleCloseEditDialog}>
+                Cancel
+              </Button>
               <Button onClick={handleSaveProfile} disabled={isLoading || isUploading}>
                 {isLoading ? "Saving..." : "Save Changes"}
               </Button>

@@ -232,9 +232,9 @@ const Navbar = () => {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem>
                         <Button asChild variant="ghost">
-                          <Link to="/profile" className="w-full flex items-center">
+                          <Link to={user.role === "organizer" ? "/profile" : "/wallet"} className="w-full flex items-center">
                             <User className="mr-2 h-4 w-4" />
-                            Profile
+                            {user.role === "organizer" ? "My Profile" : "Account"}
                           </Link>
                         </Button>
                       </DropdownMenuItem>

@@ -52,7 +52,7 @@ export default function FindOrganizers() {
 
     setOrganizers((prev) =>
       prev.map((o) =>
-        o.organizer_id === id
+        o.account_id === id
           ? { ...o, followers_count: o.followers_count + (isFollowing ? -1 : 1) }
           : o
       )
@@ -60,7 +60,7 @@ export default function FindOrganizers() {
   };
 
   const myFollowedOrganizers = organizers.filter((org) =>
-    followedOrganizers.includes(org.organizer_id)
+    followedOrganizers.includes(org.account_id)
   );
 
   return (
@@ -118,9 +118,9 @@ export default function FindOrganizers() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {organizers.map((org) => (
                   <OrganizerCard
-                    key={org.organizer_id}
+                    key={org.account_id}
                     organizer={org}
-                    isFollowing={followedOrganizers.includes(org.organizer_id)}
+                    isFollowing={followedOrganizers.includes(org.account_id)}
                     onFollowToggle={handleFollowToggle}
                   />
                 ))}
@@ -138,7 +138,7 @@ export default function FindOrganizers() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {myFollowedOrganizers.map((org) => (
                   <OrganizerCard
-                    key={org.organizer_id}
+                    key={org.account_id}
                     organizer={org}
                     isFollowing={true}
                     onFollowToggle={handleFollowToggle}
@@ -209,12 +209,12 @@ function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
 
       <CardFooter className="flex gap-2">
         <Button variant="outline" className="flex-1" asChild>
-          <Link to={`/organizers/${organizer.organizer_id}`}>View Profile</Link>
+          <Link to={`/organizers/${organizer.account_id}`}>View Profile</Link>
         </Button>
 
         <Button
           className="flex-1"
-          onClick={() => onFollowToggle(organizer.organizer_id)}
+          onClick={() => onFollowToggle(organizer.account_id)}
           variant={isFollowing ? 'default' : 'secondary'}
         >
           {isFollowing ? (

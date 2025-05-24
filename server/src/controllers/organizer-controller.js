@@ -201,4 +201,101 @@ export const getOrganizerProfile = async (req, res, next) => {
         console.error('Get Organizer Profile Error:', error);
         next(error);
     }
+};
+
+// Public endpoint to get organizer profile by ID (for attendees and public viewing)
+export const getPublicOrganizerProfile = async (req, res, next) => {
+    try {
+        const organizerId = req.params.id;
+        
+        if (!organizerId) {
+            return res.status(400).json({ message: 'Organizer ID is required.' });
+        }
+
+        console.log(`[INFO] Fetching public organizer profile for ID: ${organizerId}`);
+        
+        // Get organizer profile data, excluding private information like email
+        const profileQuery = `
+            SELECT 
+                o.account_id,
+                o.display_name,
+                o.bio,
+                o.avatar_url,
+                o.avg_rating,
+                o.followers_count,
+                (SELECT COUNT(*) FROM events WHERE organizer_account_id = o.account_id) AS event_count,
+                (
+                    SELECT json_build_object(
+                        'event_id', e.event_id,
+                        'title', e.title,
+                        'start_at', e.start_at,
+                        'cover_url', (
+                            SELECT url FROM event_images 
+                            WHERE event_id = e.event_id 
+                            LIMIT 1
+                        )
+                    )
+                    FROM events e
+                    WHERE e.organizer_account_id = o.account_id AND e.status = 'PUBLISHED'
+                    ORDER BY e.start_at ASC
+                    LIMIT 1
+                ) AS upcoming_event,
+                CASE 
+                    WHEN $2::BIGINT IS NOT NULL THEN
+                        EXISTS(
+                            SELECT 1 FROM follows 
+                            WHERE follower_account_id = $2 AND organizer_account_id = o.account_id
+                        )
+                    ELSE false
+                END AS is_following
+            FROM organizers o
+            WHERE o.account_id = $1`;
+        
+        // If user is authenticated, pass their accountId to check if they're following
+        const viewerAccountId = req.user?.accountId || null;
+        
+        const result = await query(profileQuery, [organizerId, viewerAccountId]);
+        
+        if (result.rows.length === 0) {
+            console.log(`[INFO] No organizer found with ID: ${organizerId}`);
+            return res.status(404).json({ message: 'Organizer profile not found.' });
+        }
+        
+        // Get recent events for this organizer
+        const eventsQuery = `
+            SELECT 
+                e.event_id,
+                e.title,
+                e.description,
+                e.start_at,
+                e.end_at,
+                e.status,
+                e.category,
+                v.name AS venue_name,
+                (
+                    SELECT url FROM event_images 
+                    WHERE event_id = e.event_id 
+                    LIMIT 1
+                ) AS cover_url
+            FROM events e
+            LEFT JOIN venues v ON e.venue_id = v.venue_id
+            WHERE e.organizer_account_id = $1 AND e.status = 'PUBLISHED'
+            ORDER BY e.start_at ASC
+            LIMIT 5`;
+        
+        const eventsResult = await query(eventsQuery, [organizerId]);
+        
+        // Combine profile and events data
+        const response = {
+            ...result.rows[0],
+            recent_events: eventsResult.rows || []
+        };
+        
+        console.log(`[INFO] Successfully retrieved organizer profile for ID: ${organizerId}`);
+        res.status(200).json(response);
+        
+    } catch (error) {
+        console.error('Get Public Organizer Profile Error:', error);
+        next(error);
+    }
 }; 

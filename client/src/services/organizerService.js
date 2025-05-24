@@ -54,10 +54,53 @@ const getProfile = async () => {
   }
 };
 
+/**
+ * Get a public organizer profile by ID (for attendees viewing organizer profiles)
+ * @param {string|number} organizerId - The ID of the organizer to fetch
+ * @returns {Promise<Object>} - The public organizer profile data
+ */
+const getPublicProfile = async (organizerId) => {
+  try {
+    console.log(`[OrganizerService] Fetching public profile for organizer ID: ${organizerId}`);
+    const endpoint = `/organizer/organizer/${organizerId}`;
+    console.log(`[OrganizerService] Making API request to: ${endpoint}`);
+    
+    const response = await apiClient.get(endpoint);
+    console.log(`[OrganizerService] Response received:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`[OrganizerService] Failed to get public profile for organizer ${organizerId}`, error);
+    throw error;
+  }
+};
+
+/**
+ * Toggle following an organizer
+ * @param {string|number} organizerId - The ID of the organizer to follow/unfollow
+ * @param {boolean} isFollowing - Whether the user is currently following the organizer
+ * @returns {Promise<Object>} - The response from the server
+ */
+const toggleFollow = async (organizerId, isFollowing) => {
+  try {
+    let response;
+    if (isFollowing) {
+      response = await apiClient.delete(`/users/organizers/follow/${organizerId}`);
+    } else {
+      response = await apiClient.post(`/users/organizers/follow/${organizerId}`);
+    }
+    return response.data;
+  } catch (error) {
+    console.error(`OrganizerService: Failed to ${isFollowing ? 'unfollow' : 'follow'} organizer ${organizerId}`, error.message);
+    throw error;
+  }
+};
+
 const organizerService = {
   updateProfile,
   uploadProfileImage,
-  getProfile
+  getProfile,
+  getPublicProfile,
+  toggleFollow
 };
 
 export default organizerService; 

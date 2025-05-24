@@ -1,5 +1,5 @@
 import express from "express";
-import { updateOrganizerProfile, uploadProfileImage, getOrganizerProfile } from "../controllers/organizer-controller.js";
+import { updateOrganizerProfile, uploadProfileImage, getOrganizerProfile, getPublicOrganizerProfile } from "../controllers/organizer-controller.js";
 import checkAuth from "../middleware/auth-check.js";
 import multer from "multer";
 
@@ -22,7 +22,11 @@ const upload = multer({
 
 export const organizerRouter = express.Router();
 
-// Profile management routes
+// Profile management routes (private, for organizers only)
 organizerRouter.get("/profile", checkAuth, getOrganizerProfile);
 organizerRouter.put("/profile", checkAuth, updateOrganizerProfile);
-organizerRouter.post("/profile-image", checkAuth, upload.single('image'), uploadProfileImage); 
+organizerRouter.post("/profile-image", checkAuth, upload.single('image'), uploadProfileImage);
+
+// Public routes (accessible to all users)
+organizerRouter.get("/organizer/:id", getPublicOrganizerProfile);
+console.log("Registered route: /api/organizer/organizer/:id for getPublicOrganizerProfile"); 
