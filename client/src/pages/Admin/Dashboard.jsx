@@ -13,19 +13,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 
 export default function Dashboard() {
   const [timeRange, setTimeRange] = useState('30days');
-  //const [summaryData, setSummaryData] = useState(null);
-  //const [revenueData, setRevenueData] = useState([]);
+  const [summaryData, setSummaryData] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
   const [userGrowthData, setUserGrowthData] = useState([]);
   const [eventCategoryData, setEventCategoryData] = useState([]);
-  //const [topEvents, setTopEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const topEvents = [
-    { id: 'EV1001', name: 'Summer Music Festival', organizer: 'Music Events Inc.', revenue: 45000, tickets: 2500, status: 'active' },
-    { id: 'EV1042', name: 'Tech Conference 2023', organizer: 'TechTalks Group', revenue: 38500, tickets: 1850, status: 'active' },
-    { id: 'EV1078', name: 'International Food Fair', organizer: 'FoodCulture Events', revenue: 31200, tickets: 2100, status: 'active' },
-    { id: 'EV1103', name: 'Sports Championship Finals', organizer: 'Sports League Org', revenue: 28900, tickets: 1650, status: 'completed' },
-  ];
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -40,6 +33,9 @@ export default function Dashboard() {
           }))
         );
         setLoading(false);
+        setRevenueData(res.data.revenueData);
+        setSummaryData(res.data.summaryData);
+        
       }
     )
       .catch(err => {
@@ -48,34 +44,6 @@ export default function Dashboard() {
       });
   }, [timeRange]);
 
-  useEffect(() => {
-    console.log("Updated eventCategoryData:", eventCategoryData);
-  }, [eventCategoryData]);
-  const summaryData = {
-    totalRevenue: 215750,
-    previousRevenue: 198300,
-    totalEvents: 87,
-    previousEvents: 74,
-    totalUsers: 3280,
-    previousUsers: 2950,
-    activeVenues: 42,
-    previousVenues: 35,
-    ticketsSold: 18950,
-    previousTicketsSold: 16200,
-    reportedIssues: 8,
-    previousReportedIssues: 12
-  };
-
-  const revenueData = [
-    { month: 'Jan', revenue: 18500 },
-    { month: 'Feb', revenue: 22300 },
-    { month: 'Mar', revenue: 24800 },
-    { month: 'Apr', revenue: 19900 },
-    { month: 'May', revenue: 27600 },
-    { month: 'Jun', revenue: 32400 },
-    { month: 'Jul', revenue: 35600 },
-    { month: 'Aug', revenue: 34650 },
-  ];
   const percentageChange = {
     revenue: ((summaryData.totalRevenue - summaryData.previousRevenue) / summaryData.previousRevenue * 100).toFixed(1),
     events: ((summaryData.totalEvents - summaryData.previousEvents) / summaryData.previousEvents * 100).toFixed(1),
@@ -83,6 +51,9 @@ export default function Dashboard() {
     venues: ((summaryData.activeVenues - summaryData.previousVenues) / summaryData.previousVenues * 100).toFixed(1),
     tickets: ((summaryData.ticketsSold - summaryData.previousTicketsSold) / summaryData.previousTicketsSold * 100).toFixed(1),
   };
+  
+
+  
 
   
 
@@ -119,7 +90,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline">
-                <div className="text-2xl font-bold">${summaryData.totalRevenue.toLocaleString()}</div>
+                <div className="text-2xl font-bold">${summaryData.totalRevenue}</div>
                 <div className={`ml-2 text-xs ${percentageChange.revenue > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {percentageChange.revenue > 0 ? <ArrowUp size={12} className="inline" /> : <ArrowDown size={12} className="inline" />}
                   {Math.abs(percentageChange.revenue)}%
@@ -151,7 +122,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline">
-                <div className="text-2xl font-bold">{summaryData.totalUsers.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{summaryData.totalUsers}</div>
                 <div className={`ml-2 text-xs ${percentageChange.users > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {percentageChange.users > 0 ? <ArrowUp size={12} className="inline" /> : <ArrowDown size={12} className="inline" />}
                   {Math.abs(percentageChange.users)}%
@@ -183,7 +154,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline">
-                <div className="text-2xl font-bold">{summaryData.ticketsSold.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{summaryData.ticketsSold}</div>
                 <div className={`ml-2 text-xs ${percentageChange.tickets > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {percentageChange.tickets > 0 ? <ArrowUp size={12} className="inline" /> : <ArrowDown size={12} className="inline" />}
                   {Math.abs(percentageChange.tickets)}%
@@ -261,36 +232,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
               
-              {/* Top Events */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Performing Events</CardTitle>
-                  <CardDescription>Highest revenue-generating events</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {topEvents.map((event) => (
-                      <div key={event.id} className="space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium">{event.name}</h4>
-                            <div className="text-sm text-muted-foreground">
-                              {event.organizer}
-                            </div>
-                          </div>
-                          <Badge variant={event.status === 'active' ? 'default' : 'secondary'}>
-                            {event.status}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center text-sm text-muted-foreground gap-4">
-                          <span><DollarSign size={14} className="inline mr-1" /> ${event.revenue.toLocaleString()}</span>
-                          <span><Ticket size={14} className="inline mr-1" /> {event.tickets} tickets</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              
             </div>
           </TabsContent>
           

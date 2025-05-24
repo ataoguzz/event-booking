@@ -269,7 +269,8 @@ export const getDashboardData = async (req, res, next) => {
     const client = await getClient();
     try {
         const { timeRange } = req.query
-        let startDate = null;
+        let startDate = new Date();
+        startDate.setFullYear(startDate.getFullYear() - 5);
 
         const now = new Date();
         switch (timeRange) {
@@ -287,7 +288,8 @@ export const getDashboardData = async (req, res, next) => {
             break;
         case 'all':
         default:
-            startDate = null;
+            startDate = new Date();
+            startDate.setFullYear(startDate.getFullYear() - 5); // 5 years ago from today
             break;
         }
         let query = `
@@ -328,11 +330,124 @@ export const getDashboardData = async (req, res, next) => {
             users: parseInt(result.rows[0].count, 10),
         });
         }
-        res.json({
+
+        const revenueData = [];
+
+        for (let i = 5; i >= 0; i--) {
+        const firstDayOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+        const firstDayOfNextMonth = new Date(firstDayOfMonth.getFullYear(), firstDayOfMonth.getMonth() + 1, 1);
+
+        const revenueQuery = `
+            SELECT COALESCE(SUM(tn.amount), 0) AS revenue
+            FROM transactions tn
+            JOIN tickets tk ON tn.tx_id = tk.tx_id
+            WHERE tk.status IN ('CONFIRMED', 'USED')
+            AND tn.created_at >= $1
+            AND tn.created_at < $2
+        `;
+        const revenueResult = await client.query(revenueQuery, [firstDayOfMonth, firstDayOfNextMonth]);
+
+        const monthLabel = firstDayOfMonth.toLocaleString('en-US', { month: 'short' });
+
+        revenueData.push({
+            month: monthLabel,
+            revenue: parseFloat(revenueResult.rows[0].revenue),
+        });
+        }   
+
+        let prevStartDate = null;
+
+        if (startDate) {
+        const diff = now.getTime() - startDate.getTime();
+        prevStartDate = new Date(startDate.getTime() - diff);
+        }
+        const summaryQueries = {
+            totalRevenue: `
+              SELECT COALESCE(SUM(tn.amount), 0) AS total
+              FROM transactions tn
+              JOIN tickets tk ON tn.tx_id = tk.tx_id
+              WHERE tk.status IN ('CONFIRMED', 'USED')
+              AND tn.created_at >= $1
+              AND tn.created_at < $2
+            `,
+            previousRevenue: `
+              SELECT COALESCE(SUM(tn.amount), 0) AS total
+              FROM transactions tn
+              JOIN tickets tk ON tn.tx_id = tk.tx_id
+              WHERE tk.status IN ('CONFIRMED', 'USED')
+              ${prevStartDate ? "AND tn.created_at >= $1 AND tn.created_at < $2" : ""}
+            `,
+            totalEvents: `
+              SELECT COUNT(*) AS total FROM events
+              ${startDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            previousEvents: `
+              SELECT COUNT(*) AS total FROM events
+              ${prevStartDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            totalUsers: `
+              SELECT COUNT(*) AS total FROM accounts
+              ${startDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            previousUsers: `
+              SELECT COUNT(*) AS total FROM accounts
+              ${prevStartDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            activeVenues: `
+              SELECT COUNT(DISTINCT venue_id) AS total FROM venues
+              ${startDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            previousVenues: `
+              SELECT COUNT(DISTINCT venue_id) AS total FROM venues
+              ${prevStartDate ? "WHERE created_at >= $1 AND created_at < $2" : ""}
+            `,
+            ticketsSold: `
+              SELECT COALESCE( COUNT(*), 0) AS total
+              FROM transactions tn
+              JOIN tickets tk ON tn.tx_id = tk.tx_id
+              WHERE tk.status IN ('CONFIRMED', 'USED')
+              AND tn.created_at >= $1
+              AND tn.created_at < $2
+            `,
+            previousTicketsSold: `
+              SELECT COALESCE( COUNT(*), 0) AS total
+              FROM transactions tn
+              JOIN tickets tk ON tn.tx_id = tk.tx_id
+              WHERE tk.status IN ('CONFIRMED', 'USED')
+              ${prevStartDate ? "AND tn.created_at >= $1 AND tn.created_at < $2" : ""}
+            `,
+          };
+          
+          
+          const totalRevenueResult = await client.query(summaryQueries.totalRevenue, [startDate, now]);
+            const previousRevenueResult = await client.query(summaryQueries.previousRevenue, [prevStartDate, startDate]);
+            const totalEventsResult = await client.query(summaryQueries.totalEvents, startDate ? [startDate, now] : []);
+            const previousEventsResult = await client.query(summaryQueries.previousEvents, prevStartDate ? [prevStartDate, startDate] : []);
+            const totalUsersResult = await client.query(summaryQueries.totalUsers, startDate ? [startDate, now] : []);
+            const previousUsersResult = await client.query(summaryQueries.previousUsers, prevStartDate ? [prevStartDate, startDate] : []);
+            const activeVenuesResult = await client.query(summaryQueries.activeVenues, startDate ? [startDate, now] : []);
+            const previousVenuesResult = await client.query(summaryQueries.previousVenues, prevStartDate ? [prevStartDate, startDate] : []);
+            const ticketsSoldResult = await client.query(summaryQueries.ticketsSold, startDate ? [startDate, now] : []);
+            const previousTicketsSoldResult = await client.query(summaryQueries.previousTicketsSold, prevStartDate ? [prevStartDate, startDate] : []);
+
+            const summaryData = {
+                ticketsSold: ticketsSoldResult.rows[0] ? ticketsSoldResult.rows[0].total : 0,
+                previousTicketsSold: previousTicketsSoldResult.rows[0] ? previousTicketsSoldResult.rows[0].total : 0,
+                totalRevenue: totalRevenueResult.rows[0] ? totalRevenueResult.rows[0].total : 0,
+                previousRevenue: previousRevenueResult.rows[0] ? previousRevenueResult.rows[0].total : 0,
+                totalEvents: totalEventsResult.rows[0] ? totalEventsResult.rows[0].total : 0,
+                previousEvents: previousEventsResult.rows[0] ? previousEventsResult.rows[0].total : 0,
+                totalUsers: totalUsersResult.rows[0] ? totalUsersResult.rows[0].total : 0,
+                previousUsers: previousUsersResult.rows[0] ? previousUsersResult.rows[0].total : 0,
+                activeVenues: activeVenuesResult.rows[0] ? activeVenuesResult.rows[0].total : 0,
+                previousVenues: previousVenuesResult.rows[0] ? previousVenuesResult.rows[0].total : 0, 
+            };
+          res.json({
             categoryCounts: eventResult.rows,
             userGrowthData,
+            revenueData,
+            summaryData,
         });
-
 
     } catch (error) {
         console.error("Error fetching all organizers:", error);
