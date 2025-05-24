@@ -14,6 +14,7 @@ const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx")
 
 // Attendee Pages
 const BrowseEvents = React.lazy(() => import("../pages/Attendee/BrowseEvents.jsx"));
+const EventDetails = React.lazy(() => import("../pages/Attendee/EventDetails.jsx"));
 const MyTickets = React.lazy(() => import("../pages/Attendee/MyTickets.jsx"));
 const FindOrganizers = React.lazy(() => import("../pages/Attendee/FindOrganizers.jsx"));
 const Wallet = React.lazy(() => import("../pages/Attendee/Wallet.jsx"));
@@ -61,6 +62,10 @@ const AllRoutes = () => {
         {
             path: "/browse-events",
             element: user && user.role === "attendee" ? <LoadComponent component={BrowseEvents} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/events/:eventId",
+            element: user && user.role === "attendee" ? <LoadComponent component={EventDetails} /> : <Navigate to="/login" />
         },
         {
             path: "/my-tickets",

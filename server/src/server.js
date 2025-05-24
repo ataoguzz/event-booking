@@ -13,6 +13,7 @@ import {organizerRouter} from "./routers/organizer-router.js";
 // Get the directory name for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+import {venueRouter} from "./routers/venue-router.js";
 
 dotenv.config()
 
@@ -26,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
+app.use("/api/users", userRouter); 
 app.use("/api/admin", adminRouter);
 app.use("/api/event", eventRouter);
 app.use("/api/organizer", organizerRouter);
@@ -38,6 +40,11 @@ app.use((err, req, res, next) => {
         error: process.env.NODE_ENV === 'development' ? err.message : undefined 
     });
 });
+app.use("/api/users", userRouter); 
+app.use("/api/admin", adminRouter);
+app.use("/api/event", eventRouter);
+app.use("/api/venue", venueRouter);
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
