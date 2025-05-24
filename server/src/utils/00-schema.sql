@@ -290,6 +290,35 @@ FROM   venues
 WHERE  city IS NOT NULL
 ORDER  BY city;
 
+CREATE VIEW followed_organizer_events AS
+SELECT 
+    f.follower_account_id,
+    e.event_id,
+    e.title,
+    e.description,
+    e.category::TEXT AS category,
+    e.start_at,
+    e.end_at,
+    e.status::TEXT AS status,
+    e.base_price,
+    e.hero_image_url AS cover_url,
+    e.tickets_sold,
+    e.created_at AS event_created_at,
+    v.name AS venue_name,
+    v.city AS venue_city,
+    o.account_id AS organizer_account_id,
+    o.display_name AS organizer_name,
+    o.avatar_url AS organizer_avatar_url,
+    o.avg_rating AS organizer_rating,
+    f.created_at AS follow_date
+FROM follows f
+JOIN organizers o ON o.account_id = f.organizer_account_id
+JOIN events e ON e.organizer_account_id = o.account_id
+JOIN venues v ON v.venue_id = e.venue_id
+WHERE e.status = 'PUBLISHED'
+  AND e.end_at >= NOW()
+ORDER BY e.start_at ASC;
+
 CREATE INDEX idx_accounts_email ON accounts(email);
 CREATE INDEX idx_events_start_at ON events(start_at);
 CREATE INDEX idx_venues_city ON venues(city);

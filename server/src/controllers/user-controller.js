@@ -370,4 +370,85 @@ export const topUpBalance = async (req, res) => {
     }
 };
 
+export const getFollowedEvents = async (req, res) => {
+    try {
+        const { accountId } = req.user;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = parseInt(req.query.offset) || 0;
+
+        const eventsQuery = `
+            SELECT 
+                event_id,
+                title,
+                description,
+                category,
+                start_at,
+                end_at,
+                status,
+                base_price,
+                cover_url,
+                tickets_sold,
+                venue_name,
+                venue_city,
+                organizer_account_id,
+                organizer_name,
+                organizer_avatar_url,
+                organizer_rating,
+                follow_date
+            FROM followed_organizer_events
+            WHERE follower_account_id = $1
+            ORDER BY start_at ASC
+            LIMIT $2 OFFSET $3
+        `;
+
+        const { rows: events } = await query(eventsQuery, [accountId, limit, offset]);
+
+        const countQuery = `
+            SELECT COUNT(*) as total
+            FROM followed_organizer_events
+            WHERE follower_account_id = $1
+        `;
+        const { rows: countRows } = await query(countQuery, [accountId]);
+        const totalCount = parseInt(countRows[0].total);
+
+        const formattedEvents = events.map(event => ({
+            event_id: event.event_id,
+            title: event.title,
+            description: event.description,
+            category: event.category,
+            start_at: event.start_at,
+            end_at: event.end_at,
+            status: event.status,
+            base_price: parseFloat(event.base_price),
+            cover_url: event.cover_url || `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`,
+            tickets_sold: event.tickets_sold,
+            venue_name: event.venue_name,
+            venue_city: event.venue_city,
+            organizer: {
+                account_id: event.organizer_account_id,
+                display_name: event.organizer_name,
+                avatar_url: event.organizer_avatar_url,
+                rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
+            },
+            follow_date: event.follow_date,
+            // Calculate time until event
+            time_until_event: new Date(event.start_at) - new Date()
+        }));
+
+        res.json({
+            events: formattedEvents,
+            pagination: {
+                total: totalCount,
+                limit: limit,
+                offset: offset,
+                has_more: offset + limit < totalCount
+            }
+        });
+
+    } catch (err) {
+        console.error('Error fetching followed events:', err);
+        res.status(500).json({ error: 'Failed to fetch followed events', details: err.message });
+    }
+};
+
 
