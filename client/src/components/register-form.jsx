@@ -56,10 +56,8 @@ export default function RegisterForm() {
     }
 
     return (
-        <div className="w-screen h-screen bg-auto bg-center">
-
-        <div className="flex justify-center items-center min-h-[70vh] bg-white p-4">
-            <Card className="w-full max-w-md bg-white">
+        <div className="w-full max-w-md">
+            <Card>
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
                 </CardHeader>
@@ -142,7 +140,6 @@ export default function RegisterForm() {
                     </form>
                 </CardContent>
             </Card>
-        </div>
         </div>
     )
 }

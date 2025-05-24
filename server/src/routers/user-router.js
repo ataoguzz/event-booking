@@ -1,20 +1,21 @@
 import express from "express";
-import {
-    changeInformation,
-    createUser,
-    deleteAccount,
-    getUserInfo,
-    getUserList
-} from "../controllers/user-controller.js";
+import { getOrganizers } from "../controllers/user-controller.js";
 import checkAuth from "../middleware/auth-check.js";
 
 
 export const userRouter = express.Router();
 
-userRouter.get("/users", getUserList)
-userRouter.post("/new-user", createUser)
+userRouter.get("/organizers", getOrganizers);
 
-userRouter.get("/:id", checkAuth, getUserInfo);
-userRouter.post("/:id", checkAuth, changeInformation);
-userRouter.delete("/:id", checkAuth, deleteAccount);
 
+/*
+userRouter.get("/organizers/following", checkAuth, (req, res) => {
+    const following = await db.query("SELECT * FROM following WHERE user_id = $1", [req.user.id]);
+}
+
+userRouter.post("/organizers/follow", checkAuth, (req, res) => {
+    const { organizerId } = req.body;
+
+userRouter.post("/organizers/follow", checkAuth, (req, res) => {
+    const { organizerId } = req.body;
+} */

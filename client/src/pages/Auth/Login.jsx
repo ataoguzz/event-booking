@@ -2,7 +2,7 @@ import LoginForm from "../../components/login-form"
 
 export default function LoginPage() {
     return (
-        <div className="container mx-auto py-10">
+        <div className="h-screen w-screen flex items-center justify-center overflow-hidden">
             <LoginForm />
         </div>
     )
