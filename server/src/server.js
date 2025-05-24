@@ -8,6 +8,7 @@ import {authRouter} from "./routers/auth-router.js";
 import {userRouter} from "./routers/user-router.js";
 import {adminRouter} from "./routers/admin-router.js";
 import {eventRouter} from "./routers/event-router.js";
+import {organizerRouter} from "./routers/organizer-router.js";
 
 // Get the directory name for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +28,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/event", eventRouter);
+app.use("/api/organizer", organizerRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

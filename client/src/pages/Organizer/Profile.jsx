@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label.jsx';
 import { StarIcon, UserIcon, Edit2Icon, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import authService from '@/services/authService.js';
+import organizerService from '@/services/organizerService.js';
 
 export default function OrganizerProfile() {
   const { user, refreshUser } = useAuth();
@@ -20,6 +20,7 @@ export default function OrganizerProfile() {
   const [avatarFile, setAvatarFile] = useState(null);
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
+  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -31,6 +32,7 @@ export default function OrganizerProfile() {
     if (user) {
       setDisplayName(user.display_name || '');
       setBio(user.bio || '');
+      setEmail(user.email || '');
       
       // If avatar_url is a relative URL, convert it to absolute URL
       if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
@@ -68,7 +70,7 @@ export default function OrganizerProfile() {
       if (avatarFile) {
         setIsUploading(true);
         try {
-          const uploadResult = await authService.uploadProfileImage(avatarFile);
+          const uploadResult = await organizerService.uploadProfileImage(avatarFile);
           
           // Convert the relative URL to an absolute URL for display
           if (uploadResult.profile.avatar_url) {
@@ -90,11 +92,23 @@ export default function OrganizerProfile() {
         }
       }
       
+      // Email validation
+      if (email && !validateEmail(email)) {
+        toast({
+          title: "Invalid Email",
+          description: "Please enter a valid email address.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       // Now update the profile info
       // Don't send avatar_url in the update as it's handled by the uploadProfileImage function
-      await authService.updateOrganizerProfile({
+      await organizerService.updateProfile({
         display_name: displayName,
-        bio: bio
+        bio: bio,
+        email: email
       });
       
       // Refresh user data
@@ -108,14 +122,29 @@ export default function OrganizerProfile() {
       handleCloseEditDialog();
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "destructive"
-      });
+      
+      // Handle specific error for email already in use
+      if (error.status === 409) {
+        toast({
+          title: "Email Already in Use",
+          description: error.message || "This email is already registered to another account.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update profile. Please try again.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to validate email format
+  const validateEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
   const handleAvatarChange = (e) => {
@@ -255,6 +284,15 @@ export default function OrganizerProfile() {
                   id="display-name" 
                   value={displayName} 
                   onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email"
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">

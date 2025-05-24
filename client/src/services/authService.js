@@ -68,36 +68,6 @@ const getCurrentUser = async () => {
   }
 };
 
-const updateOrganizerProfile = async (profileData) => {
-  try {
-    const response = await apiClient.put('/user/organizers/profile', profileData);
-    return response.data;
-  } catch (error) {
-    console.error('AuthService: Failed to update organizer profile', error.message);
-    throw error;
-  }
-};
-
-const uploadProfileImage = async (imageFile) => {
-  try {
-    const formData = new FormData();
-    formData.append('image', imageFile);
-    
-    // Create a custom config to override the default Content-Type
-    const config = {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    };
-    
-    const response = await apiClient.post('/user/organizers/profile-image', formData, config);
-    return response.data;
-  } catch (error) {
-    console.error('AuthService: Failed to upload profile image', error.message);
-    throw error;
-  }
-};
-
 const authService = {
   register,
   login,
@@ -105,8 +75,6 @@ const authService = {
   getCurrentUser,
   getStoredToken, 
   storeToken,
-  updateOrganizerProfile,
-  uploadProfileImage,
 };
 
 export default authService;
