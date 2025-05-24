@@ -109,13 +109,6 @@ SELECT seed_event('stageco@example.com',
 
 SELECT add_image(:'dome_eid', 'https://upload.wikimedia.org/wikipedia/commons/0/04/Arctic_Monkeys_-_Orange_Stage_-_Roskilde_Festival_2014.jpg');
 
--- Seat pricing (VIP / Premium / Regular)
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'dome_eid', 'VIP'     , 1200),
-  (:'dome_eid', 'Premium' ,  800),
-  (:'dome_eid', 'Regular' ,  500)
-ON CONFLICT DO NOTHING;
-
 
 
 SELECT seed_event('stageco@example.com',
@@ -132,13 +125,6 @@ SELECT seed_event('stageco@example.com',
 
 SELECT add_image(:'standup_eid', 'https://m.media-amazon.com/images/S/pv-target-images/d16059d71544a67bfad0f965d1b7e03c09524fda979ff36dfbcda40e20c8de3c._SX1080_FMjpg_.jpg');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'standup_eid', 'VIP'     , 800),
-  (:'standup_eid', 'Premium' , 550),
-  (:'standup_eid', 'Regular' , 350)
-ON CONFLICT DO NOTHING;
-
-
 
 SELECT seed_event('capital@example.com',
                   'Ankara Spor Salonu',
@@ -153,12 +139,6 @@ SELECT seed_event('capital@example.com',
                   'https://cdnuploads.aa.com.tr/uploads/Contents/2020/01/23/thumbs_b_c_71c1fef68b9fc9f77a955794d31cf9e4.jpg?v=165715') AS euro_eid  \gset
 
 SELECT add_image(:'euro_eid', 'https://cdnuploads.aa.com.tr/uploads/Contents/2020/01/23/thumbs_b_c_71c1fef68b9fc9f77a955794d31cf9e4.jpg?v=165715');
-
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'euro_eid', 'VIP'     , 600),
-  (:'euro_eid', 'Premium' , 400),
-  (:'euro_eid', 'Regular' , 250)
-ON CONFLICT DO NOTHING;
 
 
 
@@ -176,11 +156,6 @@ SELECT seed_event('capital@example.com',
 
 SELECT add_image(:'sym_eid', 'https://www.denizbank.com/medium/GalleryImage-Image-69-2x.vsf');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'sym_eid', 'VIP'    , 500),
-  (:'sym_eid', 'Regular', 200)
-ON CONFLICT DO NOTHING;
-
 
 
 SELECT seed_event('stageco@example.com',
@@ -197,9 +172,6 @@ SELECT seed_event('stageco@example.com',
 
 SELECT add_image(:'usf_eid', 'https://www.pausedergi.com/wp-content/uploads/2024/05/p-40.jpg');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'usf_eid', 'GA', 750)
-ON CONFLICT DO NOTHING;
 
 
 
@@ -216,11 +188,6 @@ SELECT seed_event('bluenote@example.com',
                   'https://qtxasset.com/quartz/qcloud1/media/image/New%20Morning%20%C2%A9LEOFAVREAU-14.jpg?VersionId=GfScVyaE04XjqoEn7kSIthaCBWzdFoL4') AS hh_eid  \gset
 
 SELECT add_image(:'hh_eid', 'https://qtxasset.com/quartz/qcloud1/media/image/New%20Morning%20%C2%A9LEOFAVREAU-14.jpg?VersionId=GfScVyaE04XjqoEn7kSIthaCBWzdFoL4');
-
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'hh_eid', 'VIP'    , 160),
-  (:'hh_eid', 'Regular', 120)
-ON CONFLICT DO NOTHING;
 
 
 
@@ -239,12 +206,6 @@ SELECT seed_event('olympia@example.com',
 
 SELECT add_image(:'pop_eid', 'https://www.voilah.sg/wp-content/uploads/2020/10/WhatsApp-Image-2020-10-08-at-3.56.18-PM-650x511.jpeg');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'pop_eid', 'VIP'     , 160),
-  (:'pop_eid', 'Premium' , 120),
-  (:'pop_eid', 'Regular' ,  90)
-ON CONFLICT DO NOTHING;
-
 
 
 SELECT seed_event('oldvic@example.com',
@@ -261,11 +222,6 @@ SELECT seed_event('oldvic@example.com',
 
 SELECT add_image(:'ham_eid', 'https://theartsdesk.com/sites/default/files/styles/mast_image_landscape/public/mastimages/54e18e61193ec51e66c99052eae28775.jpg?itok=8lUCapSA');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'ham_eid', 'VIP'     , 120),
-  (:'ham_eid', 'Premium' ,  90),
-  (:'ham_eid', 'Regular' ,  65)
-ON CONFLICT DO NOTHING;
 
 
 
@@ -283,25 +239,11 @@ SELECT seed_event('elb@example.com',
 
 SELECT add_image(:'chop_eid', 'https://img.jakpost.net/c/2020/01/03/2020_01_03_84294_1578035367._large.jpg');
 
-INSERT INTO seat_pricing (event_id, tier, price) VALUES
-  (:'chop_eid', 'VIP'    , 90),
-  (:'chop_eid', 'Regular', 55)
-ON CONFLICT DO NOTHING;
 
 
 DROP FUNCTION add_image;
 DROP FUNCTION seed_event;
 
-DO $$
-BEGIN
-  INSERT INTO event_seat_tiers (event_id, seat_id, tier)
-  SELECT e.event_id, s.seat_id, s.tier
-  FROM   events  e
-  JOIN   venues  v ON v.venue_id = e.venue_id
-  JOIN   seats   s ON s.venue_id = v.venue_id
-  WHERE  v.is_seated
-  ON CONFLICT DO NOTHING;
-END;
-$$ LANGUAGE plpgsql;
+
 
 
