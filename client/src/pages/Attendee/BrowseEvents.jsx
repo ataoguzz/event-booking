@@ -315,7 +315,7 @@ function EventCard({ ev }) {
         </div>
       </CardContent>
       <CardFooter>
-        <Button asChild className="w-full"><Link to={`/events/${ev.event_id}`}>View Details</Link></Button>
+        <Button asChild className="w-full"><Link to={`/event/${ev.event_id}`}>View Details</Link></Button>
       </CardFooter>
     </Card>
   );

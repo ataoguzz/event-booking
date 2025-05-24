@@ -3,7 +3,7 @@ CREATE TYPE tx_type_enum AS ENUM ('TOP_UP', 'TICKET_PURCHASE');
 CREATE TYPE venue_request_status_enum AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 CREATE TYPE event_category_enum AS ENUM ('CONCERT', 'THEATER', 'SPORTS', 'STANDUP', 'CONFERENCE', 'WORKSHOP', 'FESTIVAL', 'OTHER');
 CREATE TYPE event_status_enum AS ENUM ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED');
-CREATE TYPE ticket_status_enum AS ENUM ('CONFIRMED', 'CANCELLED', 'USED');
+CREATE TYPE ticket_status_enum AS ENUM ('AVAILABLE', 'PURCHASED');
 CREATE TYPE promo_discount_type_enum AS ENUM ('PERCENT', 'FIXED');
 
 
@@ -102,7 +102,6 @@ CREATE TABLE seats (
     section VARCHAR(50),
     row_label VARCHAR(10),
     seat_number VARCHAR(10),
-    tier VARCHAR(50),
     UNIQUE (venue_id, section, row_label, seat_number),
     CONSTRAINT fk_venue
         FOREIGN KEY(venue_id)
@@ -146,7 +145,6 @@ CREATE TABLE events (
     status event_status_enum DEFAULT 'DRAFT',
     base_price NUMERIC(10, 2) CHECK (base_price >= 0),
     tickets_sold INT DEFAULT 0 CHECK (tickets_sold >= 0),
-    view_count INT DEFAULT 0 CHECK (view_count >= 0),
     hero_image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -161,6 +159,7 @@ CREATE TABLE events (
     CHECK (end_at > start_at)
 );
 
+
 CREATE TABLE event_images (
     image_id BIGSERIAL PRIMARY KEY,
     event_id BIGINT NOT NULL,
@@ -173,50 +172,35 @@ CREATE TABLE event_images (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE TABLE seat_pricing (
-    event_id BIGINT NOT NULL,
-    tier VARCHAR(50) NOT NULL,
-    price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
-    PRIMARY KEY (event_id, tier),
-    CONSTRAINT fk_event
-        FOREIGN KEY(event_id)
-        REFERENCES events(event_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE event_seat_tiers (
-    event_id BIGINT  NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
-    seat_id  BIGINT  NOT NULL REFERENCES seats(seat_id)  ON DELETE CASCADE,
-    tier     VARCHAR(50) NOT NULL,
-    PRIMARY KEY (event_id, seat_id)
+CREATE TABLE event_ticket_tiers (
+    tier_id     BIGSERIAL     PRIMARY KEY,
+    event_id    BIGINT        NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    tier_name   VARCHAR(100)  NOT NULL,
+    price       NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+    quantity    INT           NOT NULL CHECK (quantity > 0),
+    description TEXT,
+    created_at  TIMESTAMPTZ   DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE (event_id, tier_name)
 );
 
 
 CREATE TABLE tickets (
-    ticket_id BIGSERIAL PRIMARY KEY,
-    tx_id BIGINT NOT NULL,
-    event_id BIGINT NOT NULL,
-    seat_id BIGINT NOT NULL,
-    guest_full_name VARCHAR(100),
-    guest_email VARCHAR(255) NULL,
-    qr_token UUID DEFAULT gen_random_uuid() UNIQUE,
-    pdf_url TEXT,
-    status ticket_status_enum DEFAULT 'CONFIRMED',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (event_id, seat_id),
-    CONSTRAINT fk_transaction
-        FOREIGN KEY(tx_id)
-        REFERENCES transactions(tx_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_event
-        FOREIGN KEY(event_id)
-        REFERENCES events(event_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_seat
-        FOREIGN KEY(seat_id)
-        REFERENCES seats(seat_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE
+    ticket_id            BIGSERIAL PRIMARY KEY,
+    event_id             BIGINT  NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    tier_id              BIGINT  NULL     REFERENCES event_ticket_tiers(tier_id) ON DELETE SET NULL,
+    seat_id              BIGINT  NULL     REFERENCES seats(seat_id)   ON DELETE RESTRICT,
+    tx_id                BIGINT  NULL     REFERENCES transactions(tx_id),
+    attendee_account_id  BIGINT  NULL     REFERENCES attendees(account_id) ON DELETE SET NULL,
+    price_at_purchase    NUMERIC(10,2),
+    guest_full_name      VARCHAR(100),
+    guest_email          VARCHAR(255),
+    qr_token             UUID DEFAULT gen_random_uuid() UNIQUE,
+    pdf_url              TEXT,
+    status               ticket_status_enum DEFAULT 'AVAILABLE',
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (event_id, seat_id)
 );
 
 CREATE TABLE promo_codes (
@@ -315,3 +299,6 @@ CREATE INDEX idx_tickets_tx_id ON tickets(tx_id);
 CREATE INDEX idx_tickets_event_id ON tickets(event_id);
 CREATE INDEX idx_transactions_attendee_account_id_created_at ON transactions(attendee_account_id, created_at DESC);
 CREATE INDEX idx_promo_codes_code ON promo_codes(code);
+CREATE INDEX idx_tickets_event_status ON tickets(event_id, status);
+CREATE INDEX idx_tickets_event_tier   ON tickets(event_id, tier_id);
+CREATE INDEX idx_event_ticket_tiers_event_id ON event_ticket_tiers(event_id);
