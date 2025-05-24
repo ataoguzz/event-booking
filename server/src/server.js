@@ -5,6 +5,7 @@ import cors from 'cors';
 import {authRouter} from "./routers/auth-router.js";
 import {userRouter} from "./routers/user-router.js";
 import {adminRouter} from "./routers/admin-router.js";
+import {eventRouter} from "./routers/event-router.js";
 
 
 dotenv.config()
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use("/api/auth", authRouter);
 // app.use("/api/user", userRouter); NOT IMPLEMENTED YET
 app.use("/api/admin", adminRouter);
+app.use("/api/event", eventRouter);
 
 
 
