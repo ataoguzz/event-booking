@@ -20,7 +20,7 @@ export const createEvent = async (req, res, next) => {
     const {
         title, description, eventType,
         startDate, startTime, endDate, endTime,
-        venue, price, rules, organizerAccountId,
+        venue, rules, organizerAccountId,
         ticketTiersData: ticketTiersDataString
     } = req.body;
 
@@ -37,7 +37,7 @@ export const createEvent = async (req, res, next) => {
         return res.status(400).json({ message: "At least one event image is required." });
     }
 
-    if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venue || !price) {
+    if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venue) {
         return res.status(400).json({ message: "Missing required fields." });
     }
 
