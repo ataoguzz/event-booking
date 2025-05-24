@@ -23,6 +23,7 @@ const MyEvents = React.lazy(() => import("../pages/Organizer/MyEvents.jsx"));
 const CreateEvent = React.lazy(() => import("../pages/Organizer/CreateEvent.jsx"));
 const Followers = React.lazy(() => import("../pages/Organizer/Followers.jsx"));
 const Analytics = React.lazy(() => import("../pages/Organizer/Analytics.jsx"));
+const OrganizerProfile = React.lazy(() => import("../pages/Organizer/Profile.jsx"));
 
 // Admin Pages
 const Dashboard = React.lazy(() => import("../pages/Admin/Dashboard.jsx"));
@@ -90,6 +91,10 @@ const AllRoutes = () => {
         {
             path: "/analytics",
             element: user && user.role === "organizer" ? <LoadComponent component={Analytics} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/profile",
+            element: user && user.role === "organizer" ? <LoadComponent component={OrganizerProfile} /> : <Navigate to="/login" />
         },
         
         // Admin Routes
