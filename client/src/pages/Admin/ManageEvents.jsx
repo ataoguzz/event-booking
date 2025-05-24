@@ -78,13 +78,11 @@ export default function ManageEvents() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active':
+      case 'PUBLISHED':
         return 'default';
-      case 'pending':
-        return 'secondary';
-      case 'completed':
+      case 'COMPLETED':
         return 'success';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'destructive';
       default:
         return 'default';
@@ -137,10 +135,9 @@ export default function ManageEvents() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
           </div>

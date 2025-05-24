@@ -176,6 +176,54 @@ export const getAllEvents = async (req, res, next) => {
     }
   };
   
+  export const getAllAcounts = async (req, res, next) => {
+    const client = await getClient();
+  
+    try {
+      // Query all users with roles and full names from joined tables
+      const result = await client.query(`
+        SELECT 
+        a.account_id,
+        a.email,
+        a.role,
+        a.created_at,
+        CASE 
+            WHEN a.role = 'organizer' THEN o.display_name
+            WHEN a.role = 'attendee' THEN at.full_name
+            ELSE 'Admin'
+        END AS full_name
+        FROM accounts a
+        LEFT JOIN organizers o ON a.account_id = o.account_id
+        LEFT JOIN attendees at ON a.account_id = at.account_id;
+      `);
+  
+      const users = result.rows;
+  
+      // Count users by role
+      const attendeeCount = users.filter(u => u.role === 'attendee').length;
+      const organizerCount = users.filter(u => u.role === 'organizer').length;
+      const adminCount = users.filter(u => u.role === 'admin').length;
+  
+      // Trace counts in console
+      console.log('Attendee Count:', attendeeCount);
+      console.log('Organizer Count:', organizerCount);
+      console.log('Admin Count:', adminCount);
+  
+      // Optionally send counts in response or whole user list
+      res.status(200).json({
+        counts: { attendeeCount, organizerCount, adminCount },
+        users,
+      });
+    } catch (error) {
+      console.error('Error in getAllUsers:', error);
+      next(error);
+    } finally {
+      client.release();
+    }
+  };
+  
+  
+
   export const getEventsByCities = async (req, res, next) => {
     const { cities } = req.body; 
   
