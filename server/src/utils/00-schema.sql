@@ -298,6 +298,15 @@ CREATE TABLE follows (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+
+-- VIEWS
+
+CREATE VIEW venue_cities AS
+SELECT DISTINCT city
+FROM   venues
+WHERE  city IS NOT NULL
+ORDER  BY city;
+
 CREATE INDEX idx_accounts_email ON accounts(email);
 CREATE INDEX idx_events_start_at ON events(start_at);
 CREATE INDEX idx_venues_city ON venues(city);

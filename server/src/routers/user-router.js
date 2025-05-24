@@ -1,11 +1,15 @@
 import express from "express";
-import { getOrganizers } from "../controllers/user-controller.js";
+import { getOrganizers, getFollowing, followOrganizer, unfollowOrganizer } from "../controllers/user-controller.js";
 import checkAuth from "../middleware/auth-check.js";
 
 
 export const userRouter = express.Router();
 
 userRouter.get("/organizers", getOrganizers);
+userRouter.get("/organizers/following", checkAuth, getFollowing);
+userRouter.post("/organizers/follow/:id", checkAuth, followOrganizer);
+userRouter.delete("/organizers/follow/:id", checkAuth, unfollowOrganizer);
+
 
 
 /*
