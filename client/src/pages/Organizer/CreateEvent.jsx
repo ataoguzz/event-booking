@@ -175,7 +175,7 @@ const CreateEvent = () => {
             });
             console.log("Event created:", response.data);
             alert("Event created successfully!");
-            //navigate('/organizer/my-events'); // Or to the new event's page
+            navigate('/my-events');
         } catch (error) {
             console.error("Error creating event:", error);
             const errorMsg = error.data?.message || error.message || "Error creating event. Please try again.";
