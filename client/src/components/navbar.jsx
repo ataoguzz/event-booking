@@ -136,7 +136,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/admin/dashboard"
+                              to="/dashboard"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -148,7 +148,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/admin/events"
+                              to="/events"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -160,7 +160,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/admin/venues"
+                              to="/venues"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -172,7 +172,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/admin/users"
+                              to="/users"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -239,7 +239,7 @@ const Navbar = () => {
                           <>
                             <DropdownMenuItem>
                               <Button asChild variant="ghost">
-                                <Link to="/organizer/my-events" className="w-full flex items-center">
+                                <Link to="/my-events" className="w-full flex items-center">
                                   <Calendar className="mr-2 h-4 w-4" />
                                   My Events
                                 </Link>
@@ -247,7 +247,7 @@ const Navbar = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Button asChild variant="ghost">
-                                <Link to="/organizer/followers" className="w-full flex items-center">
+                                <Link to="/followers" className="w-full flex items-center">
                                   <Users className="mr-2 h-4 w-4" />
                                   Followers
                                 </Link>
@@ -258,7 +258,7 @@ const Navbar = () => {
                       {user.role === "admin" && (
                           <DropdownMenuItem>
                             <Button asChild variant="ghost">
-                              <Link to="/admin/dashboard" className="w-full flex items-center">
+                              <Link to="/dashboard" className="w-full flex items-center">
                                 <LayoutDashboard className="mr-2 h-4 w-4" />
                                 Admin Dashboard
                               </Link>
@@ -275,7 +275,7 @@ const Navbar = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <Button asChild variant="ghost">
-                          <Link to="/logout" className="w-full flex items-center">
+                          <Link to="/auth/login" className="w-full flex items-center"> {/* temporary logout link */}
                             <LogOut className="mr-2 h-4 w-4" />
                             Logout
                           </Link>
@@ -336,28 +336,28 @@ const Navbar = () => {
                   {user?.role === "organizer" && (
                       <>
                         <Link
-                            to="/organizer/my-events"
+                            to="/my-events"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           My Events
                         </Link>
                         <Link
-                            to="/organizer/create-event"
+                            to="/create-event"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Create Event
                         </Link>
                         <Link
-                            to="/organizer/followers"
+                            to="/followers"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Followers
                         </Link>
                         <Link
-                            to="/organizer/analytics"
+                            to="/analytics"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
@@ -369,28 +369,28 @@ const Navbar = () => {
                   {user?.role === "admin" && (
                       <>
                         <Link
-                            to="/admin/dashboard"
+                            to="/dashboard"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Dashboard
                         </Link>
                         <Link
-                            to="/admin/events"
+                            to="/events"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Manage Events
                         </Link>
                         <Link
-                            to="/admin/venues"
+                            to="/venues"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Manage Venues
                         </Link>
                         <Link
-                            to="/admin/users"
+                            to="/users"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >

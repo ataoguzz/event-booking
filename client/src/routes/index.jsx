@@ -23,6 +23,12 @@ const CreateEvent = React.lazy(() => import("../pages/Organizer/CreateEvent.jsx"
 const Followers = React.lazy(() => import("../pages/Organizer/Followers.jsx"));
 const Analytics = React.lazy(() => import("../pages/Organizer/Analytics.jsx"));
 
+// Admin Pages
+const Dashboard = React.lazy(() => import("../pages/Admin/Dashboard.jsx"));
+const ManageEvents = React.lazy(() => import("../pages/Admin/ManageEvents.jsx"));
+const ManageVenues = React.lazy(() => import("../pages/Admin/ManageVenues.jsx"));
+const ManageUsers = React.lazy(() => import("../pages/Admin/ManageUsers.jsx"));
+
 const loading = () => <div className=""></div>;
 
 const LoadComponent = ({ component }) => (
@@ -39,6 +45,10 @@ const AllRoutes = () => {
             element: <Navigate to="/home" />
         },
         {
+            path: "/login",
+            element: <Navigate to="/auth/login" /> // alttakileri degistirmeye usendim
+        },
+        {
             path: "/auth",
             children:[
                 {path: "login", element: <LoadComponent component={Login} />},
@@ -48,15 +58,15 @@ const AllRoutes = () => {
         // Attendee Routes
         {
             path: "/browse-events",
-            element: user ? user.role === "attendee" ? <LoadComponent component={BrowseEvents} /> : <Navigate to="/login" /> : <Navigate to="/login" />
+            element: user && user.role === "attendee" ? <LoadComponent component={BrowseEvents} /> : <Navigate to="/login" />
         },
         {
             path: "/my-tickets",
-            element: user ? user.role === "attendee" ? <LoadComponent component={MyTickets} /> : <Navigate to="/login" /> : <Navigate to="/login" />
+            element: user && user.role === "attendee" ? <LoadComponent component={MyTickets} /> : <Navigate to="/login" />
         },
         {
             path: "/find-organizers",
-            element: user ? user.role === "attendee" ? <LoadComponent component={FindOrganizers} /> : <Navigate to="/login" /> : <Navigate to="/login" />
+            element: user && user.role === "attendee" ? <LoadComponent component={FindOrganizers} /> : <Navigate to="/login" />
         },
         
         // Organizer Routes
@@ -77,7 +87,25 @@ const AllRoutes = () => {
             element: user && user.role === "organizer" ? <LoadComponent component={Analytics} /> : <Navigate to="/login" />
         },
         
-        // Legacy routes - kept for backward compatibility
+        // Admin Routes
+        {
+            path: "/dashboard",
+            element: user && user.role === "admin" ? <LoadComponent component={Dashboard} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/events",
+            element: user && user.role === "admin" ? <LoadComponent component={ManageEvents} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/venues",
+            element: user && user.role === "admin" ? <LoadComponent component={ManageVenues} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/users",
+            element: user && user.role === "admin" ? <LoadComponent component={ManageUsers} /> : <Navigate to="/login" />
+        },
+        
+        // Legacy routes - kept for backward compatibility ?????
         {
             path: "/create-event",
             element: user ? <Navigate to="/organizer/create-event" /> : <Navigate to="/login" />
