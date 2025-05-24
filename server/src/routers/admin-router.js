@@ -3,6 +3,8 @@ import {check} from "express-validator";
 import {getVenuesRequests, 
     evaluateVenueRequest,
     getAllEvents,
+    getAllEventsFilter,
+    getEventsByCities,
     getAllOrganizers} from "../controllers/admin-controller.js";
 
 export const adminRouter = express.Router();
@@ -11,4 +13,6 @@ export const adminRouter = express.Router();
 adminRouter.get("/venuesRequests", getVenuesRequests);
 adminRouter.post("/evaluateVenueRequest", evaluateVenueRequest);
 adminRouter.get("/getAllEvents", getAllEvents);
+adminRouter.get('/getAllEventsFilter', getAllEventsFilter);
+adminRouter.get("/getEventsByCities", getEventsByCities);
 adminRouter.get("/getAllOrganizers", getAllOrganizers);

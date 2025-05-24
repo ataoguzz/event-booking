@@ -90,17 +90,113 @@ export const getAllEvents = async (req, res, next) => {
       const queryText = `
         SELECT 
           e.*,
+          o.display_name,
           v.name,
-          v.city,
           v.address,
-          v.capacity 
+          v.city,
+          v.capacity,
+          v.is_seated
         FROM events e
+        JOIN organizers o ON e.organizer_account_id = o.account_id
         JOIN venues v ON e.venue_id = v.venue_id
       `;
       const result = await client.query(queryText);
       res.status(200).json(result.rows);
     } catch (error) {
       console.error("Error fetching all events with venues:", error);
+      next(error);
+    } finally {
+      client.release();
+    }
+  };
+
+  export const getAllEventsFilter = async (req, res, next) => {
+    const client = await getClient();
+  
+    try {
+      const { search, category, status, start, end } = req.query;
+  
+      // Base query with joins
+      let queryText = `
+        SELECT 
+          e.*,
+          o.display_name,
+          v.name,
+          v.address,
+          v.city,
+          v.capacity,
+          v.is_seated
+        FROM events e
+        JOIN organizers o ON e.organizer_account_id = o.account_id
+        JOIN venues v ON e.venue_id = v.venue_id
+      `;
+  
+      // Array to hold WHERE conditions
+      const conditions = [];
+      // Array to hold parameter values for parameterized query
+      const values = [];
+  
+      // Add filters if they exist
+      if (search) {
+        values.push(`%${search}%`);
+        conditions.push(`(e.title ILIKE $${values.length} OR o.display_name ILIKE $${values.length})`);
+      }
+      if (category && category !== 'all') {
+        values.push(category);
+        conditions.push(`e.category = $${values.length}`);
+      }
+      if (status && status !== 'all') {
+        values.push(status);
+        conditions.push(`e.status = $${values.length}`);
+      }
+      if (start) {
+        values.push(start);
+        conditions.push(`e.start_at >= $${values.length}`);
+      }
+      if (end) {
+        values.push(end);
+        conditions.push(`e.end_at <= $${values.length}`);
+      }
+  
+      // Append WHERE clause if any conditions exist
+      if (conditions.length > 0) {
+        queryText += ` WHERE ` + conditions.join(' AND ');
+      }
+  
+      // Optionally add ORDER BY, LIMIT, OFFSET here if needed
+  
+      const result = await client.query(queryText, values);
+      res.status(200).json(result.rows);
+  
+    } catch (error) {
+      console.error("Error fetching filtered events:", error);
+      next(error);
+    } finally {
+      client.release();
+    }
+  };
+  
+  export const getEventsByCities = async (req, res, next) => {
+    const { cities } = req.body; 
+  
+    if (!Array.isArray(cities) || cities.length === 0) {
+      return res.status(400).json({ message: "You must provide an array of cities." });
+    }
+  
+    const client = await getClient();
+  
+    try {
+      const result = await client.query(
+        `SELECT e.*, v.name, v.city, v.address, v.capacity
+         FROM events e
+         JOIN venues v ON e.venue_id = v.venue_id
+         WHERE v.city = ANY($1);`,
+        [cities]
+      );
+  
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error("Error fetching events by cities:", error);
       next(error);
     } finally {
       client.release();
