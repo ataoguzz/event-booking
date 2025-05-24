@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import apiClient from '../../helpers/apiCore';
 import Layout from '@/components/Layout.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
@@ -12,22 +13,32 @@ import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 
 export default function Dashboard() {
   const [timeRange, setTimeRange] = useState('30days');
-  
-  // Mock data
-  const summaryData = {
-    totalRevenue: 215750,
-    previousRevenue: 198300,
-    totalEvents: 87,
-    previousEvents: 74,
-    totalUsers: 3280,
-    previousUsers: 2950,
-    activeVenues: 42,
-    previousVenues: 35,
-    ticketsSold: 18950,
-    previousTicketsSold: 16200,
-    reportedIssues: 8,
-    previousReportedIssues: 12
-  };
+  const [summaryData, setSummaryData] = useState(null);
+  const [revenueData, setRevenueData] = useState([]);
+  const [userGrowthData, setUserGrowthData] = useState([]);
+  const [eventCategoryData, setEventCategoryData] = useState([]);
+  const [topEvents, setTopEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    apiClient.get(`/admin/dashboard?timeRange=${timeRange}`)
+      .then(res => {
+        // Adjust these assignments based on your backend response structure
+        setSummaryData(res.data.summaryData);
+        setRevenueData(res.data.revenueData);
+        setUserGrowthData(res.data.userGrowthData);
+        setEventCategoryData(res.data.eventCategoryData);
+        setTopEvents(res.data.topEvents);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError('Failed to load dashboard data');
+        setLoading(false);
+      });
+  }, [timeRange]);
 
   const percentageChange = {
     revenue: ((summaryData.totalRevenue - summaryData.previousRevenue) / summaryData.previousRevenue * 100).toFixed(1),
@@ -38,49 +49,7 @@ export default function Dashboard() {
     issues: ((summaryData.reportedIssues - summaryData.previousReportedIssues) / summaryData.previousReportedIssues * 100).toFixed(1),
   };
 
-  const revenueData = [
-    { month: 'Jan', revenue: 18500 },
-    { month: 'Feb', revenue: 22300 },
-    { month: 'Mar', revenue: 24800 },
-    { month: 'Apr', revenue: 19900 },
-    { month: 'May', revenue: 27600 },
-    { month: 'Jun', revenue: 32400 },
-    { month: 'Jul', revenue: 35600 },
-    { month: 'Aug', revenue: 34650 },
-  ];
   
-  const userGrowthData = [
-    { month: 'Jan', users: 2200 },
-    { month: 'Feb', users: 2350 },
-    { month: 'Mar', users: 2480 },
-    { month: 'Apr', users: 2620 },
-    { month: 'May', users: 2780 },
-    { month: 'Jun', users: 2950 },
-    { month: 'Jul', users: 3120 },
-    { month: 'Aug', users: 3280 },
-  ];
-
-  const eventCategoryData = [
-    { name: 'Concerts', value: 32 },
-    { name: 'Conferences', value: 18 },
-    { name: 'Sports', value: 15 },
-    { name: 'Workshops', value: 12 },
-    { name: 'Exhibitions', value: 10 },
-  ];
-
-  const recentAlerts = [
-    { id: 1, type: 'warning', message: 'Unusual login activity detected from organizer account #2458', time: '2 hours ago' },
-    { id: 2, type: 'error', message: 'Failed payment processing for event #1089', time: '5 hours ago' },
-    { id: 3, type: 'info', message: 'System maintenance scheduled for tonight at 2 AM', time: '8 hours ago' },
-    { id: 4, type: 'success', message: 'New venue verification completed for Madison Square Garden', time: '1 day ago' },
-  ];
-
-  const topEvents = [
-    { id: 'EV1001', name: 'Summer Music Festival', organizer: 'Music Events Inc.', revenue: 45000, tickets: 2500, status: 'active' },
-    { id: 'EV1042', name: 'Tech Conference 2023', organizer: 'TechTalks Group', revenue: 38500, tickets: 1850, status: 'active' },
-    { id: 'EV1078', name: 'International Food Fair', organizer: 'FoodCulture Events', revenue: 31200, tickets: 2100, status: 'active' },
-    { id: 'EV1103', name: 'Sports Championship Finals', organizer: 'Sports League Org', revenue: 28900, tickets: 1650, status: 'completed' },
-  ];
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -101,7 +70,6 @@ export default function Dashboard() {
             <SelectContent>
               <SelectItem value="7days">Last 7 days</SelectItem>
               <SelectItem value="30days">Last 30 days</SelectItem>
-              <SelectItem value="90days">Last 90 days</SelectItem>
               <SelectItem value="year">This year</SelectItem>
               <SelectItem value="all">All time</SelectItem>
             </SelectContent>
@@ -213,7 +181,6 @@ export default function Dashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="alerts">System Alerts</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="mt-0 space-y-6">
@@ -237,27 +204,7 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-            
-            {/* User Growth */}
-            <Card>
-              <CardHeader>
-                <CardTitle>User Growth</CardTitle>
-                <CardDescription>Total registered users over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={userGrowthData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="users" stroke="#00C49F" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+          
           </TabsContent>
           
           <TabsContent value="events" className="mt-0 space-y-6">
@@ -327,46 +274,29 @@ export default function Dashboard() {
           </TabsContent>
           
           <TabsContent value="users" className="mt-0 space-y-6">
-            {/* User statistics would go here - this is a placeholder */}
+            {/* User Growth */}
             <Card>
               <CardHeader>
-                <CardTitle>User Metrics</CardTitle>
-                <CardDescription>Detailed user statistics will be displayed here</CardDescription>
-              </CardHeader>
-              <CardContent className="h-80 flex items-center justify-center">
-                <p className="text-muted-foreground text-center">
-                  Detailed user metrics dashboard coming soon. <br />
-                  Visit the Manage Users page for current user management options.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="alerts" className="mt-0 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Alerts & Notifications</CardTitle>
-                <CardDescription>Recent system alerts and notifications</CardDescription>
+                <CardTitle>User Growth</CardTitle>
+                <CardDescription>Total registered users over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentAlerts.map((alert) => (
-                    <Alert key={alert.id} variant={alert.type === 'error' ? 'destructive' : 'default'}>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <ShieldAlert className="h-4 w-4 mb-1" />
-                          <AlertDescription className="mt-1">
-                            {alert.message}
-                          </AlertDescription>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{alert.time}</span>
-                      </div>
-                    </Alert>
-                  ))}
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={userGrowthData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="users" stroke="#00C49F" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
+          
+          
         </Tabs>
       </div>
     </Layout>

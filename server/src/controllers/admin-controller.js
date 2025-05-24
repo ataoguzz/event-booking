@@ -265,4 +265,81 @@ export const getAllOrganizers = async (req, res, next) => {
     }
 }
 
+export const getDashboardData = async (req, res, next) => {
+    const client = await getClient();
+    try {
+        const { timeRange } = req.query
+        let startDate = null;
+
+        const now = new Date();
+        switch (timeRange) {
+        case '7days':
+            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+        case '30days':
+            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            break;
+        case '90days':
+            startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            break;
+        case 'year':
+            startDate = new Date(now.getFullYear(), 0, 1); // Jan 1st of this year
+            break;
+        case 'all':
+        default:
+            startDate = null;
+            break;
+        }
+        let query = `
+            SELECT e.category as name, COUNT(*) AS value
+            FROM events e
+        `;
+        let values = [];
+
+        if (startDate) {
+            query += ` WHERE e.start_at >= $1`;
+            values.push(startDate);
+        }
+
+        query += `
+            GROUP BY e.category
+            ORDER BY count DESC
+        `;
+        const result = await client.query(query, values);
+
+        const nowDate = new Date();
+        const userGrowthData = [];
+
+        for (let i = 5; i >= 0; i--) {
+        const firstDayOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+        const firstDayOfNextMonth = new Date(firstDayOfMonth.getFullYear(), firstDayOfMonth.getMonth() + 1, 1);
+
+        const query = `
+            SELECT COUNT(*) AS count
+            FROM accounts
+            WHERE created_at < $1
+        `;
+        const result = await client.query(query, [firstDayOfNextMonth]);
+
+        const monthLabel = firstDayOfMonth.toLocaleString('en-US', { month: 'short' }); // e.g. Jan, Feb
+
+        userGrowthData.push({
+            month: monthLabel,
+            users: parseInt(result.rows[0].count, 10),
+        });
+        }
+        res.json({
+            categoryCounts: eventResult.rows,
+            userGrowthData,
+        });
+
+
+    } catch (error) {
+        console.error("Error fetching all organizers:", error);
+        next(error);
+    } finally {
+        client.release();
+    }
+
+}
   

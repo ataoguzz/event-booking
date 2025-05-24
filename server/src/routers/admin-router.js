@@ -6,7 +6,8 @@ import {getVenuesRequests,
     getAllEventsFilter,
     getAllAcounts,
     getEventsByCities,
-    getAllOrganizers} from "../controllers/admin-controller.js";
+    getAllOrganizers,
+    getDashboardData} from "../controllers/admin-controller.js";
 
 export const adminRouter = express.Router();
 
@@ -18,3 +19,4 @@ adminRouter.get('/getAllEventsFilter', getAllEventsFilter);
 adminRouter.get('/getAllAccounts', getAllAcounts);
 adminRouter.get("/getEventsByCities", getEventsByCities);
 adminRouter.get("/getAllOrganizers", getAllOrganizers);
+adminRouter.get('/dashboard', getDashboardData);

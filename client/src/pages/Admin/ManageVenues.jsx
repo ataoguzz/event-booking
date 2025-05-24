@@ -192,11 +192,6 @@ export default function ManageVenues() {
             <p className="text-muted-foreground mt-1">Review and approve venue registrations</p>
           </div>
           
-          <div className="flex items-center gap-3">
-            <Button variant="default">
-              Add New Venue
-            </Button>
-          </div>
         </div>
 
         {/* Tab Navigation */}
