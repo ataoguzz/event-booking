@@ -3,4 +3,4 @@ import {getAllVenues} from "../controllers/venue-controller.js";
 
 export const venueRouter = express.Router();
 
-venueRouter.get('/', getAllVenues);
+venueRouter.get('/venues', getAllVenues);

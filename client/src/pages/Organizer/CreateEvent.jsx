@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input.jsx";
 import { Label } from "@/components/ui/label.jsx";
 import { Textarea } from "@/components/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.jsx";
-// Removed Badge as tags are removed
 import { Calendar } from "@/components/ui/calendar.jsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.jsx";
 import {
@@ -24,10 +23,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
 import { CalendarIcon, Upload, X, MapPin } from "lucide-react"; // Removed Plus (for tags)
 import { cn } from "@/lib/utils.js";
 import { format } from "date-fns";
-import apiClient from "@/lib/apiClient"; // Assuming your apiClient is in @/lib/apiClient
+import apiClient from "@/helpers/apiCore.js";
+import { useAuth } from "@/contexts/AuthContext.jsx";
 
 const CreateEvent = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+
     const [formData, setFormData] = useState({
         title: "",
         description: "",
@@ -36,33 +38,23 @@ const CreateEvent = () => {
         endDate: null,
         startTime: "",
         endTime: "",
-        venue: "", // Will store venue_id
+        venue: "",
         price: "",
-        // currency: "USD", // Removed
-        // capacity: "", // Removed - will come from venue
         rules: "",
-        // tags: [], // Removed
-        images: [], // Will store File objects
-        // ageRestriction: "none", // Removed
-        // refundPolicy: "full", // Removed
-        // contactEmail: "", // Removed
-        // contactPhone: "", // Removed
+        images: [],
     });
 
     // const [newTag, setNewTag] = useState(""); // Removed for tags
     const [isVenueDialogOpen, setIsVenueDialogOpen] = useState(false);
-    const [venueRequest, setVenueRequest] = useState({
-        name: "", address: "", capacity: "", description: "",
-    });
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
-
     const [venues, setVenues] = useState([]);
+    const [venueRequest, setVenueRequest] = useState({name: "", address: "", capacity: "", description: ""});
 
     useEffect(() => {
         const fetchVenues = async () => {
             try {
-                const response = await apiClient.get("/venues");
+                const response = await apiClient.get("/venues/venues");
                 setVenues(response.data || []);
             } catch (error) {
                 console.error("Error fetching venues:", error);
@@ -143,14 +135,26 @@ const CreateEvent = () => {
         return Object.keys(newErrors).length === 0;
     };
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!user || !user.account_id) {
+            setErrors(prev => ({ ...prev, form: "User not authenticated or account ID missing. Cannot create event." }));
+            alert("Authentication error. Please log in again.");
+            return;
+        }
+        if (user.role !== 'organizer') {
+            setErrors(prev => ({ ...prev, form: "Only organizers can create events." }));
+            alert("Access Denied: Only organizers can create events.");
+            return;
+        }
+
         if (!validateForm()) return;
         setIsSubmitting(true);
 
         const data = new FormData();
 
-        // Append relevant fields from formData
         data.append('title', formData.title);
         data.append('description', formData.description);
         data.append('eventType', formData.eventType);
@@ -158,22 +162,23 @@ const CreateEvent = () => {
         data.append('startTime', formData.startTime);
         if (formData.endDate) data.append('endDate', format(formData.endDate, "yyyy-MM-dd"));
         data.append('endTime', formData.endTime);
-        data.append('venue', formData.venue); // venue ID
+        data.append('venue', formData.venue);
         data.append('price', formData.price);
         if (formData.rules) data.append('rules', formData.rules);
-        // No currency, capacity, tags, ageRestriction, refundPolicy, contactEmail, contactPhone
+
+        data.append('organizerAccountId', user.account_id.toString());
 
         formData.images.forEach(imageObj => {
             data.append('images', imageObj.file, imageObj.name);
         });
 
         try {
-            const response = await apiClient.post('/events', data, {
+            const response = await apiClient.post('/event/create', data, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log("Event created:", response.data);
             alert("Event created successfully!");
-            navigate('/organizer/my-events');
+            navigate('/organizer/my-events'); // Or to the new event's page
         } catch (error) {
             console.error("Error creating event:", error);
             const errorMsg = error.data?.message || error.message || "Error creating event. Please try again.";
