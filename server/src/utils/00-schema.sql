@@ -33,6 +33,7 @@ CREATE TABLE organizers (
     account_id BIGINT PRIMARY KEY,
     display_name VARCHAR(255) NOT NULL,
     bio TEXT,
+    avatar_url TEXT DEFAULT 'https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png',
     avg_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
     followers_count INT DEFAULT 0 CHECK (followers_count >= 0),
     CONSTRAINT fk_account
@@ -69,7 +70,8 @@ CREATE TABLE venues (
     name VARCHAR(255) NOT NULL,
     address TEXT,
     city VARCHAR(100),
-    capacity INT CHECK (capacity > 0),
+    capacity INT CHECK (capacity >= 0),
+    is_seated BOOLEAN NOT NULL DEFAULT TRUE,
     map_image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -145,7 +147,6 @@ CREATE TABLE events (
     base_price NUMERIC(10, 2) CHECK (base_price >= 0),
     tickets_sold INT DEFAULT 0 CHECK (tickets_sold >= 0),
     view_count INT DEFAULT 0 CHECK (view_count >= 0),
-    avg_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
     hero_image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -181,6 +182,13 @@ CREATE TABLE seat_pricing (
         FOREIGN KEY(event_id)
         REFERENCES events(event_id)
         ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE event_seat_tiers (
+    event_id BIGINT  NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    seat_id  BIGINT  NOT NULL REFERENCES seats(seat_id)  ON DELETE CASCADE,
+    tier     VARCHAR(50) NOT NULL,
+    PRIMARY KEY (event_id, seat_id)
 );
 
 
