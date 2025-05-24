@@ -297,15 +297,15 @@ export const getDashboardData = async (req, res, next) => {
         let values = [];
 
         if (startDate) {
-            query += ` WHERE e.start_at >= $1`;
+            query += ` WHERE e.created_at >= $1`;
             values.push(startDate);
         }
 
         query += `
             GROUP BY e.category
-            ORDER BY count DESC
+            ORDER BY value DESC
         `;
-        const result = await client.query(query, values);
+        const eventResult = await client.query(query, values);
 
         const nowDate = new Date();
         const userGrowthData = [];

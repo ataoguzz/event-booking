@@ -13,40 +13,75 @@ import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 
 export default function Dashboard() {
   const [timeRange, setTimeRange] = useState('30days');
-  const [summaryData, setSummaryData] = useState(null);
-  const [revenueData, setRevenueData] = useState([]);
+  //const [summaryData, setSummaryData] = useState(null);
+  //const [revenueData, setRevenueData] = useState([]);
   const [userGrowthData, setUserGrowthData] = useState([]);
   const [eventCategoryData, setEventCategoryData] = useState([]);
-  const [topEvents, setTopEvents] = useState([]);
+  //const [topEvents, setTopEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const topEvents = [
+    { id: 'EV1001', name: 'Summer Music Festival', organizer: 'Music Events Inc.', revenue: 45000, tickets: 2500, status: 'active' },
+    { id: 'EV1042', name: 'Tech Conference 2023', organizer: 'TechTalks Group', revenue: 38500, tickets: 1850, status: 'active' },
+    { id: 'EV1078', name: 'International Food Fair', organizer: 'FoodCulture Events', revenue: 31200, tickets: 2100, status: 'active' },
+    { id: 'EV1103', name: 'Sports Championship Finals', organizer: 'Sports League Org', revenue: 28900, tickets: 1650, status: 'completed' },
+  ];
   useEffect(() => {
     setLoading(true);
     setError(null);
     apiClient.get(`/admin/dashboard?timeRange=${timeRange}`)
       .then(res => {
-        // Adjust these assignments based on your backend response structure
-        setSummaryData(res.data.summaryData);
-        setRevenueData(res.data.revenueData);
+        console.log(res.data);
         setUserGrowthData(res.data.userGrowthData);
-        setEventCategoryData(res.data.eventCategoryData);
-        setTopEvents(res.data.topEvents);
+        setEventCategoryData(
+          res.data.categoryCounts.map(item => ({
+            name: item.name,
+            value: Number(item.value),
+          }))
+        );
         setLoading(false);
-      })
+      }
+    )
       .catch(err => {
         setError('Failed to load dashboard data');
         setLoading(false);
       });
   }, [timeRange]);
 
+  useEffect(() => {
+    console.log("Updated eventCategoryData:", eventCategoryData);
+  }, [eventCategoryData]);
+  const summaryData = {
+    totalRevenue: 215750,
+    previousRevenue: 198300,
+    totalEvents: 87,
+    previousEvents: 74,
+    totalUsers: 3280,
+    previousUsers: 2950,
+    activeVenues: 42,
+    previousVenues: 35,
+    ticketsSold: 18950,
+    previousTicketsSold: 16200,
+    reportedIssues: 8,
+    previousReportedIssues: 12
+  };
+
+  const revenueData = [
+    { month: 'Jan', revenue: 18500 },
+    { month: 'Feb', revenue: 22300 },
+    { month: 'Mar', revenue: 24800 },
+    { month: 'Apr', revenue: 19900 },
+    { month: 'May', revenue: 27600 },
+    { month: 'Jun', revenue: 32400 },
+    { month: 'Jul', revenue: 35600 },
+    { month: 'Aug', revenue: 34650 },
+  ];
   const percentageChange = {
     revenue: ((summaryData.totalRevenue - summaryData.previousRevenue) / summaryData.previousRevenue * 100).toFixed(1),
     events: ((summaryData.totalEvents - summaryData.previousEvents) / summaryData.previousEvents * 100).toFixed(1),
     users: ((summaryData.totalUsers - summaryData.previousUsers) / summaryData.previousUsers * 100).toFixed(1),
     venues: ((summaryData.activeVenues - summaryData.previousVenues) / summaryData.previousVenues * 100).toFixed(1),
     tickets: ((summaryData.ticketsSold - summaryData.previousTicketsSold) / summaryData.previousTicketsSold * 100).toFixed(1),
-    issues: ((summaryData.reportedIssues - summaryData.previousReportedIssues) / summaryData.previousReportedIssues * 100).toFixed(1),
   };
 
   
@@ -158,21 +193,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Reported Issues</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline">
-                <div className="text-2xl font-bold">{summaryData.reportedIssues}</div>
-                <div className={`ml-2 text-xs ${percentageChange.issues < 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {percentageChange.issues < 0 ? <ArrowDown size={12} className="inline" /> : <ArrowUp size={12} className="inline" />}
-                  {Math.abs(percentageChange.issues)}%
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">vs previous period</p>
-            </CardContent>
-          </Card>
+          
         </div>
         
         {/* Main Charts and Data */}
