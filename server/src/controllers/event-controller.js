@@ -20,7 +20,8 @@ export const createEvent = async (req, res, next) => {
     const {
         title, description, eventType,
         startDate, startTime, endDate, endTime,
-        venue, price, rules, organizerAccountId
+        venue, price, rules, organizerAccountId,
+        ticketTiersData: ticketTiersDataString
     } = req.body;
 
     if (!organizerAccountId) {
@@ -40,6 +41,24 @@ export const createEvent = async (req, res, next) => {
         return res.status(400).json({ message: "Missing required fields." });
     }
 
+    let ticketTiers;
+    try {
+        ticketTiers = JSON.parse(ticketTiersDataString);
+        if (!Array.isArray(ticketTiers) || ticketTiers.length === 0) {
+            throw new Error("Ticket tiers data is invalid or empty.");
+        }
+        for (const tier of ticketTiers) {
+            if (!tier.tierName || typeof tier.tierName !== 'string' || tier.tierName.trim() === "")
+                throw new Error("Invalid tier name.");
+            if (isNaN(parseFloat(tier.price)) || parseFloat(tier.price) < 0)
+                throw new Error(`Invalid price for tier ${tier.tierName}.`);
+            if (isNaN(parseInt(tier.quantity)) || parseInt(tier.quantity) <= 0)
+                throw new Error(`Invalid quantity for tier ${tier.tierName}. Must be a positive integer.`);
+        }
+    } catch (e) {
+        return res.status(400).json({ message: `Invalid ticket tiers data: ${e.message}` });
+    }
+
     let startAtIso, endAtIso;
     try {
         startAtIso = new Date(`${startDate}T${startTime}`).toISOString();
@@ -53,17 +72,15 @@ export const createEvent = async (req, res, next) => {
 
     const category = mapEventTypeToCategory(eventType);
     const venueId = parseInt(venue, 10);
-    const basePrice = parseFloat(price);
 
     if (isNaN(venueId) || venueId <= 0) return res.status(400).json({ message: "Invalid Venue ID." });
-    if (isNaN(basePrice) || basePrice <= 0) return res.status(400).json({ message: "Invalid Price." });
+
+    const basePriceForEvent = ticketTiers.length > 0 ? parseFloat(ticketTiers[0].price) : 0;
 
     const client = await getClient();
     try {
         await client.query('BEGIN');
 
-        // Optional: Verify if the organizerAccountId from req.body actually exists in your organizers table
-        // This is a good sanity check if you are taking the ID from the body.
         const organizerCheckResult = await client.query('SELECT account_id FROM organizers WHERE account_id = $1', [parsedOrganizerAccountId]);
         if (organizerCheckResult.rows.length === 0) {
             await client.query('ROLLBACK');
@@ -79,25 +96,49 @@ export const createEvent = async (req, res, next) => {
             RETURNING event_id, title, created_at, status;
         `;
         const eventInsertValues = [
-            parsedOrganizerAccountId, // Using the ID directly from req.body
+            parsedOrganizerAccountId,
             venueId, category, title, description, rules || null,
-            startAtIso, endAtIso, 'PUBLISHED', basePrice, heroImageUrl
+            startAtIso, endAtIso, 'PUBLISHED', basePriceForEvent, heroImageUrl
         ];
 
         const eventResult = await client.query(eventInsertQuery, eventInsertValues);
-        const newEvent = eventResult.rows[0];
+        const newEventId = eventResult.rows[0].event_id;
 
         const imageInsertPromises = req.files.map(file => {
             const imageUrl = `/uploads/${file.filename}`;
-            return client.query(
-                'INSERT INTO event_images (event_id, url, caption) VALUES ($1, $2, $3)',
-                [newEvent.event_id, imageUrl, file.originalname]
-            );
+            return client.query('INSERT INTO event_images (event_id, url, caption) VALUES ($1, $2, $3)',
+                [newEventId, imageUrl, file.originalname]);
         });
         await Promise.all(imageInsertPromises);
 
+        for (const tier of ticketTiers) {
+            const tierInsertQuery = `
+                INSERT INTO event_ticket_tiers (event_id, tier_name, price, quantity)
+                VALUES ($1, $2, $3, $4)
+                RETURNING tier_id;
+            `;
+            const tierResult = await client.query(tierInsertQuery, [
+                newEventId,
+                tier.tierName,
+                parseFloat(tier.price),
+                parseInt(tier.quantity)
+            ]);
+            const newTierId = tierResult.rows[0].tier_id;
+
+            const ticketInsertPromises = [];
+            for (let i = 0; i < parseInt(tier.quantity); i++) {
+                ticketInsertPromises.push(
+                    client.query(
+                        `INSERT INTO tickets (event_id, tier_id, status) VALUES ($1, $2, 'AVAILABLE')`,
+                        [newEventId, newTierId]
+                    )
+                );
+            }
+            await Promise.all(ticketInsertPromises);
+        }
+
         await client.query('COMMIT');
-        res.status(201).json({ message: "Event created successfully!", event: newEvent });
+        res.status(201).json({ message: "Event and tickets created successfully!", event: { event_id: newEventId } });
 
     } catch (error) {
         await client.query('ROLLBACK');
@@ -106,6 +147,8 @@ export const createEvent = async (req, res, next) => {
             next({ status: 400, message: `Invalid reference (e.g., organizer or venue ID not found). Details: ${error.detail}` });
         } else if (error.code === '23505' && error.constraint === 'events_title_start_key') {
             next({ status: 409, message: "An event with this title and start time already exists."});
+        } else if (error.constraint === 'event_ticket_tiers_event_id_tier_name_key') {
+            next({ status: 409, message: "Duplicate tier name for this event."});
         } else {
             next(error);
         }
