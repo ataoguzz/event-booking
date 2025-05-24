@@ -2,7 +2,7 @@ import RegisterForm from "../../components/register-form.jsx";
 
 export default function RegisterPage() {
     return (
-        <div className="container mx-auto grid place-items-center min-h-screen py-10">
+        <div className="h-screen w-screen flex items-center justify-center overflow-hidden">
             <RegisterForm />
         </div>
     );
