@@ -103,6 +103,7 @@ export default function MyEvents() {
     );
   }
 
+
   if (error) {
     return (
         <Layout>
@@ -182,21 +183,44 @@ export default function MyEvents() {
             </TabsList>
 
             <TabsContent value="all" className="mt-0">
-              <EventCards events={filteredEvents} />
+              <EventCards events={filteredEvents} onDeleteEvent={handleDeleteEvent}/>
             </TabsContent>
 
             <TabsContent value="published" className="mt-0">
-              <EventCards events={publishedEvents} />
+              <EventCards events={publishedEvents} onDeleteEvent={handleDeleteEvent}/>
             </TabsContent>
 
             <TabsContent value="draft" className="mt-0">
-              <EventCards events={draftEvents} />
+              <EventCards events={draftEvents} onDeleteEvent={handleDeleteEvent} />
             </TabsContent>
           </Tabs>
         </div>
       </Layout>
   );
 }
+
+
+const handleDeleteEvent = async (eventId, eventTitle) => {
+  if (!window.confirm(`Are you sure you want to delete the event "${eventTitle}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsLoading(true); // You might want a more specific loading state for delete
+  try {
+    await apiClient.delete(`/event/${eventId}`); // Matches router: DELETE /api/event/:eventId
+    alert(`Event "${eventTitle}" deleted successfully.`);
+    // Update the local state to remove the deleted event
+    setAllFetchedEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+    // Or trigger a re-fetch:
+    // setRefreshTrigger(prev => prev + 1); // And add refreshTrigger to useEffect dependency array
+  } catch (err) {
+    console.error(`Error deleting event ${eventId}:`, err);
+    setError(err.data?.message || err.message || `Failed to delete event "${eventTitle}".`);
+    alert(err.data?.message || `Failed to delete event "${eventTitle}". Please try again.`);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
 function EventCards({ events }) {
   if (events.length === 0) {
@@ -276,8 +300,11 @@ function EventCards({ events }) {
                     </Link>
                   </Button>
 
-                  {/* Delete button would require a confirmation and API call */}
-                  <Button variant="destructive" size="sm" onClick={() => alert(`Delete event ${event.id}? Implement delete logic.`)}>
+                  <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onDeleteEvent(event.id, event.title)} // Call onDeleteEvent
+                  >
                     <Trash2 size={14} className="mr-1.5" />
                     {/* Delete */}
                   </Button>

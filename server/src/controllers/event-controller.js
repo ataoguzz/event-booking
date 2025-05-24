@@ -194,3 +194,50 @@ export const getOrganizerEvents = async (req, res, next) => {
         }
     }
 };
+
+export const deleteEvent = async (req, res, next) => {
+    // req.user should be populated by checkAuth
+    if (!req.user || !req.user.accountId) {
+        return res.status(401).json({ message: "Authentication required." });
+    }
+
+    const { eventId } = req.params;
+
+    if (!eventId || isNaN(parseInt(eventId))) {
+        return res.status(400).json({ message: "Valid Event ID is required." });
+    }
+    const parsedEventId = parseInt(eventId, 10);
+
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        const eventCheckQuery = 'SELECT organizer_account_id FROM events WHERE event_id = $1';
+        const eventCheckResult = await client.query(eventCheckQuery, [parsedEventId]);
+
+        if (eventCheckResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: "Event not found." });
+        }
+
+        const deleteEventQuery = 'DELETE FROM events WHERE event_id = $1 RETURNING event_id, title';
+        const deletedEventResult = await client.query(deleteEventQuery, [parsedEventId]);
+
+        if (deletedEventResult.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: "Event not found during deletion attempt." });
+        }
+
+        await client.query('COMMIT');
+        res.status(200).json({ message: `Event "${deletedEventResult.rows[0].title}" (ID: ${deletedEventResult.rows[0].event_id}) deleted successfully.` });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error deleting event ${parsedEventId}:`, error);
+        next(error);
+    } finally {
+        if (client) {
+            client.release();
+        }
+    }
+};
