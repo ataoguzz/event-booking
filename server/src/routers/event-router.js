@@ -7,5 +7,5 @@ export const eventRouter = express.Router();
 
 // POST /api/event/
 eventRouter.post('/create', uploadEventImages, createEvent);
-eventRouter.get('/my-events', getOrganizerEvents);
+eventRouter.post('/my-events', getOrganizerEvents);
 // eventRouter.get('/:eventId', getEventById);

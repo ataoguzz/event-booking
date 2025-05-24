@@ -116,50 +116,38 @@ export const createEvent = async (req, res, next) => {
 
 
 export const getOrganizerEvents = async (req, res, next) => {
-    if (!req.user || !req.user.accountId) {
-        console.error("Controller Error in getOrganizerEvents: User or user accountId not found. Auth middleware issue.");
-        return res.status(401).json({ message: "Authentication error: User identity not found." });
+    // This route should be protected by your `checkAuth` middleware.
+    const { organizerAccountId } = req.body;
+
+    if (!organizerAccountId) {
+        return res.status(400).json({ message: "Organizer Account ID is required in the request body." });
     }
-    const organizerAccountId = req.user.accountId;
 
-    const client = await getClient(); // Acquire a client
+    const parsedOrganizerAccountId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+    }
 
+    const client = await getClient();
     try {
         const eventsQuery = `
             SELECT
-                e.event_id,
-                e.title,
-                e.description,
-                e.category,
-                e.status,
-                e.start_at,
-                e.end_at,
-                e.base_price,
-                e.tickets_sold,
-                e.hero_image_url,
-                v.name AS venue_name,
-                v.city AS venue_city,
-                v.capacity AS venue_capacity
-            FROM
-                events e
-            JOIN
-                venues v ON e.venue_id = v.venue_id
-            WHERE
-                e.organizer_account_id = $1
-            ORDER BY
-                e.start_at DESC;
+                e.event_id, e.title, e.description, e.category, e.status,
+                e.start_at, e.end_at, e.base_price, e.tickets_sold, e.hero_image_url,
+                v.name AS venue_name, v.city AS venue_city, v.capacity AS venue_capacity
+            FROM events e
+            JOIN venues v ON e.venue_id = v.venue_id
+            WHERE e.organizer_account_id = $1
+            ORDER BY e.start_at DESC;
         `;
-        const { rows } = await client.query(eventsQuery, [organizerAccountId]);
-
+        const { rows } = await client.query(eventsQuery, [parsedOrganizerAccountId]);
         res.status(200).json(rows);
-
     } catch (error) {
-        console.error(`Error fetching events for organizer ${organizerAccountId}:`, error);
+        console.error(`Error fetching events for organizer ${parsedOrganizerAccountId} via POST:`, error);
         next(error);
     } finally {
         if (client) {
             client.release();
-            console.log('Client released after getOrganizerEvents.');
         }
     }
 };
