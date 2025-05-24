@@ -182,20 +182,52 @@ const SeatSelection = () => {
   };
 
   const handleProceedToCheckout = () => {
-    // Check if event is seated or non-seated
     if (seatData?.venue?.is_seated) {
-      // Seated event - use selected seats
       if (selectedSeats.length === 0) return;
-      const seatIds = selectedSeats.map(seat => seat.seat_id).join(',');
-      navigate(`/event/${eventId}/checkout?seats=${seatIds}`);
+      
+      const checkoutData = {
+        eventInfo: {
+          event_id: seatData.event.event_id,
+          title: seatData.event.title,
+          venue_name: seatData.event.venue_name,
+          is_seated: seatData.venue.is_seated
+        },
+        selectedSeats: selectedSeats,
+        totalAmount: calculateTotal(),
+        totalTickets: selectedSeats.length
+      };
+      
+      navigate(`/event/${eventId}/checkout`, { state: checkoutData });
     } else {
       // Non-seated event - use ticket quantities
       if (calculateTotalQuantity() === 0) return;
-      const quantities = Object.entries(ticketQuantities)
+      
+      // Build selected quantities data
+      const selectedQuantitiesData = Object.entries(ticketQuantities)
         .filter(([tierId, qty]) => qty > 0)
-        .map(([tierId, qty]) => `${tierId}:${qty}`)
-        .join(',');
-      navigate(`/event/${eventId}/checkout?quantities=${quantities}`);
+        .map(([tierId, qty]) => {
+          const tier = seatData.tiers.find(t => t.tier_id === parseInt(tierId));
+          return {
+            tier: tier,
+            quantity: qty,
+            subtotal: tier.price * qty
+          };
+        });
+      
+      // Pass actual ticket data through router state
+      const checkoutData = {
+        eventInfo: {
+          event_id: seatData.event.event_id,
+          title: seatData.event.title,
+          venue_name: seatData.event.venue_name,
+          is_seated: seatData.venue.is_seated
+        },
+        selectedQuantities: selectedQuantitiesData,
+        totalAmount: calculateTotalPrice(),
+        totalTickets: calculateTotalQuantity()
+      };
+      
+      navigate(`/event/${eventId}/checkout`, { state: checkoutData });
     }
   };
 

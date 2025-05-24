@@ -48,11 +48,10 @@ export const evaluateVenueRequest = async (req, res, next) => {
                 address,
                 city,
                 capacity,
-                map_image_url,
                 created_at,
                 updated_at
               )
-              VALUES ($1, NULL, $2, $3, NULL, NOW(), NOW())
+              VALUES ($1, NULL, $2, $3, NOW(), NOW())
               RETURNING *;
             `;
       

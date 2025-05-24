@@ -72,7 +72,6 @@ CREATE TABLE venues (
     city VARCHAR(100),
     capacity INT CHECK (capacity >= 0),
     is_seated BOOLEAN NOT NULL DEFAULT TRUE,
-    map_image_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

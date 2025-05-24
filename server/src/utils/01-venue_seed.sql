@@ -11,22 +11,19 @@ INSERT INTO facilities (name) VALUES
   ('ATM')
 ON CONFLICT (name) DO NOTHING;
 
-\set seat_map_b64 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNjAwIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0iIzBiMTEyMCIvPjx0ZXh0IHg9IjQwMCIgeT0iMzAwIiBmb250LXNpemU9IjQ4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+U2VhdCBNYXA8L3RleHQ+PC9zdmc+'
-\set ga_map_b64 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNjAwIj48ZGVmcz48c3R5bGU+LnR7Zm9udC1zaXplOjQ4cHg7ZmlsbDojZmZmO308L3N0eWxlPjwvZGVmcz48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0iIzBiMTEyMCIvPjx0ZXh0IHg9IjQwMCIgeT0iMzAwIiBjbGFzcz0idCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+R2VuZXJhbCBBZG1pc3Npb248L3RleHQ+PC9zdmc+'
-
-INSERT INTO venues (name, address, city, capacity, map_image_url, is_seated) VALUES
-('Sinan Erdem Dome','Olimpiyatköy Yolu, Ataköy 4-5-6. Kısım, Bakırköy','Istanbul',0,:'seat_map_b64',TRUE),
-('Volkswagen Arena','Kuzey Çevre Yolu, Huzur Mah. Maslak Ayazağa Cad. No:4','Istanbul',0,:'seat_map_b64',TRUE),
-('Ankara Spor Salonu','Cumhuriyet Cad. No:4, Ulus','Ankara',0,:'seat_map_b64',TRUE),
-('Kültürpark Açıkhava','Kültürpark, Montrö Kapısı, Lozan Cad.','Izmir',0,:'seat_map_b64',TRUE),
-('Nilüfer Açıkhava','Balat Mah. Akpınar Cad. No:17, Nilüfer','Bursa',0,:'seat_map_b64',TRUE),
-('İstanbul Park Festival Grounds','Akfırat Bulv. No:1, Tuzla','Istanbul',40000,:'ga_map_b64',FALSE),
-('SALT Galata','Bankalar Cd. No:11, Karaköy','Istanbul',800,:'ga_map_b64',FALSE),
-('Blue Note Jazz Club','131 W 3rd St.','New York',0,:'seat_map_b64',TRUE),
-('L''Olympia','28 Bd des Capucines','Paris',0,:'seat_map_b64',TRUE),
-('The Old Vic','The Cut, Lambeth','London',0,:'seat_map_b64',TRUE),
-('Elbphilharmonie Kaistudio','Platz der Deutschen Einheit 1','Hamburg',0,:'seat_map_b64',TRUE),
-('Rijksmuseum Garden','Museumstraat 1','Amsterdam',500,:'ga_map_b64',FALSE)
+INSERT INTO venues (name, address, city, capacity, is_seated) VALUES
+('Sinan Erdem Dome','Olimpiyatköy Yolu, Ataköy 4-5-6. Kısım, Bakırköy','Istanbul',0,TRUE),
+('Volkswagen Arena','Kuzey Çevre Yolu, Huzur Mah. Maslak Ayazağa Cad. No:4','Istanbul',0,TRUE),
+('Ankara Spor Salonu','Cumhuriyet Cad. No:4, Ulus','Ankara',0,TRUE),
+('Kültürpark Açıkhava','Kültürpark, Montrö Kapısı, Lozan Cad.','Izmir',0,TRUE),
+('Nilüfer Açıkhava','Balat Mah. Akpınar Cad. No:17, Nilüfer','Bursa',0,TRUE),
+('İstanbul Park Festival Grounds','Akfırat Bulv. No:1, Tuzla','Istanbul',40000,FALSE),
+('SALT Galata','Bankalar Cd. No:11, Karaköy','Istanbul',800,FALSE),
+('Blue Note Jazz Club','131 W 3rd St.','New York',0,TRUE),
+('L''Olympia','28 Bd des Capucines','Paris',0,TRUE),
+('The Old Vic','The Cut, Lambeth','London',0,TRUE),
+('Elbphilharmonie Kaistudio','Platz der Deutschen Einheit 1','Hamburg',0,TRUE),
+('Rijksmuseum Garden','Museumstraat 1','Amsterdam',500,FALSE)
 ON CONFLICT (name) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION link_fac(v_name TEXT, f_list TEXT[]) RETURNS VOID LANGUAGE plpgsql AS
