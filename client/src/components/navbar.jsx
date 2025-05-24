@@ -40,7 +40,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/events"
+                              to="/browse-events"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -64,7 +64,7 @@ const Navbar = () => {
                       <NavigationMenuItem>
                         <NavigationMenuLink asChild>
                           <Link
-                              to="/organizers"
+                              to="/find-organizers"
                               className={cn(
                                   "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                               )}
@@ -189,7 +189,7 @@ const Navbar = () => {
                     <NavigationMenuItem>
                       <NavigationMenuLink asChild>
                         <Link
-                            to="/events"
+                            to="/browse-events"
                             className={cn(
                                 "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
                             )}
@@ -239,7 +239,7 @@ const Navbar = () => {
                           <>
                             <DropdownMenuItem>
                               <Button asChild variant="ghost">
-                                <Link to="/my-events" className="w-full flex items-center">
+                                <Link to="/organizer/my-events" className="w-full flex items-center">
                                   <Calendar className="mr-2 h-4 w-4" />
                                   My Events
                                 </Link>
@@ -247,7 +247,7 @@ const Navbar = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Button asChild variant="ghost">
-                                <Link to="/followers" className="w-full flex items-center">
+                                <Link to="/organizer/followers" className="w-full flex items-center">
                                   <Users className="mr-2 h-4 w-4" />
                                   Followers
                                 </Link>
@@ -310,7 +310,7 @@ const Navbar = () => {
                   {user?.role === "attendee" && (
                       <>
                         <Link
-                            to="/events"
+                            to="/browse-events"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
@@ -324,7 +324,7 @@ const Navbar = () => {
                           My Tickets
                         </Link>
                         <Link
-                            to="/organizers"
+                            to="/find-organizers"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
@@ -336,28 +336,28 @@ const Navbar = () => {
                   {user?.role === "organizer" && (
                       <>
                         <Link
-                            to="/my-events"
+                            to="/organizer/my-events"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           My Events
                         </Link>
                         <Link
-                            to="/create-event"
+                            to="/organizer/create-event"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Create Event
                         </Link>
                         <Link
-                            to="/followers"
+                            to="/organizer/followers"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                           Followers
                         </Link>
                         <Link
-                            to="/analytics"
+                            to="/organizer/analytics"
                             className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
@@ -401,7 +401,7 @@ const Navbar = () => {
 
                   {!user && (
                       <Link
-                          to="/events"
+                          to="/browse-events"
                           className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
                           onClick={() => setIsMenuOpen(false)}
                       >

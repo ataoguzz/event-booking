@@ -654,7 +654,7 @@ const CreateEvent = () => {
                     {/* Submit Button */}
                     <div className="flex justify-end gap-4">
                         <Button type="button" variant="outline" asChild>
-                            <Link to="/my-events">Cancel</Link>
+                            <Link to="/organizer/my-events">Cancel</Link>
                         </Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? "Creating Event..." : "Create Event"}
@@ -666,4 +666,4 @@ const CreateEvent = () => {
     )
 }
 
-export default CreateEvent
+export default CreateEvent 
