@@ -4,13 +4,30 @@ import { query, getClient } from "../utils/db.js";
 export const getVenuesRequests = async (req, res, next) => {
     const client = await getClient();
     try {
-      const queryText = `
+      const { status, city, search } = req.query;
+      let queryText = `
         SELECT vr.request_id, vr.name, vr.city, vr.capacity, vr.notes, vr.status,
                o.account_id, o.display_name, o.bio, o.avg_rating
         FROM venues_requests vr
         JOIN organizers o ON vr.organizer_account_id = o.account_id
+        WHERE 1=1
       `;
-      const result = await client.query(queryText);
+      const values = [];
+
+      if (status && status !== 'all') {
+        values.push(status);
+        queryText += ` AND vr.status = $${values.length}`;
+      }
+      if (city && city !== 'all') {
+        values.push(city);
+        queryText += ` AND vr.city = $${values.length}`;
+      }
+      if (search) {
+        values.push(`%${search.toLowerCase()}%`);
+        queryText += ` AND (LOWER(vr.name) LIKE $${values.length} OR LOWER(vr.city) LIKE $${values.length} OR LOWER(vr.request_id::text) LIKE $${values.length})`;
+      }
+
+      const result = await client.query(queryText, values);
       res.status(200).json(result.rows);
     } catch (error) {
       console.error("Error fetching venues requests:", error);
