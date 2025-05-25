@@ -76,10 +76,8 @@ export default function MyTickets() {
 
   const handleDownloadTicket = async (ticketId) => {
     try {
-      // Download PDF
-      const response = await apiClient.get(`/tickets/${ticketId}/download`, {
-        responseType: 'blob'
-      });
+      // Download PDF using the new downloadFile method
+      const response = await apiClient.downloadFile(`/tickets/${ticketId}/download`);
       
       // Create blob URL and download
       const blob = new Blob([response.data], { type: 'application/pdf' });

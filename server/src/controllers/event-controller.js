@@ -816,7 +816,6 @@ const mapEventTypeToCategory = (eventType) => {
 };
 
 export const createEvent = async (req, res, next) => {
-
     const {
         title, description, eventType,
         startDate, startTime, endDate, endTime,
@@ -881,6 +880,15 @@ export const createEvent = async (req, res, next) => {
     try {
         await client.query('BEGIN');
 
+        // Check if venue exists and get its seating type
+        const venueCheckQuery = 'SELECT venue_id, is_seated FROM venues WHERE venue_id = $1';
+        const venueCheckResult = await client.query(venueCheckQuery, [venueId]);
+        if (venueCheckResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: "Venue not found." });
+        }
+        const isSeatedVenue = venueCheckResult.rows[0].is_seated;
+
         const organizerCheckResult = await client.query('SELECT account_id FROM organizers WHERE account_id = $1', [parsedOrganizerAccountId]);
         if (organizerCheckResult.rows.length === 0) {
             await client.query('ROLLBACK');
@@ -925,16 +933,37 @@ export const createEvent = async (req, res, next) => {
             ]);
             const newTierId = tierResult.rows[0].tier_id;
 
-            const ticketInsertPromises = [];
-            for (let i = 0; i < parseInt(tier.quantity); i++) {
-                ticketInsertPromises.push(
-                    client.query(
-                        `INSERT INTO tickets (event_id, tier_id, status) VALUES ($1, $2, 'AVAILABLE')`,
-                        [newEventId, newTierId]
-                    )
-                );
+            if (isSeatedVenue) {
+                // For seated venues, assign seats to tickets
+                const seatAssignmentQuery = `
+                    INSERT INTO tickets (event_id, seat_id, tier_id, status)
+                    SELECT $1, s.seat_id, $2, 'AVAILABLE'
+                    FROM seats s
+                    LEFT JOIN tickets t ON t.event_id = $1 AND t.seat_id = s.seat_id
+                    WHERE s.venue_id = $3
+                    AND t.ticket_id IS NULL
+                    ORDER BY s.section, s.row_label, CAST(s.seat_number AS INT)
+                    LIMIT $4;
+                `;
+                await client.query(seatAssignmentQuery, [
+                    newEventId,
+                    newTierId,
+                    venueId,
+                    parseInt(tier.quantity)
+                ]);
+            } else {
+                // For non-seated venues, create tickets without seat assignments
+                const ticketInsertPromises = [];
+                for (let i = 0; i < parseInt(tier.quantity); i++) {
+                    ticketInsertPromises.push(
+                        client.query(
+                            `INSERT INTO tickets (event_id, tier_id, status) VALUES ($1, $2, 'AVAILABLE')`,
+                            [newEventId, newTierId]
+                        )
+                    );
+                }
+                await Promise.all(ticketInsertPromises);
             }
-            await Promise.all(ticketInsertPromises);
         }
 
         await client.query('COMMIT');

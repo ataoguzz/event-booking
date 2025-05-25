@@ -22,17 +22,20 @@ import {
     DialogFooter
 } from "@/components/ui/dialog.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
-import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash } from "lucide-react";
+import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils.js";
 import { format } from "date-fns";
 // import { v4 as uuidv4 } from 'uuid'; // REMOVE THIS LINE
 import apiClient from "@/helpers/apiCore.js";
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import SeatAssignment from "@/components/SeatAssignment.jsx";
+import { useToast } from "@/hooks/use-toast";
 
 const CreateEvent = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
 
     const [formData, setFormData] = useState({
         title: "",
@@ -57,8 +60,7 @@ const CreateEvent = () => {
         return { id: id, tierName: '', price: '', quantity: '' };
     };
 
-    const [ticketTiers, setTicketTiers] = useState([getInitialTier()]); // Use function to get initial tier
-
+    const [ticketTiers, setTicketTiers] = useState([getInitialTier()]);
     const [selectedVenue, setSelectedVenue] = useState(null);
     const [isVenueDialogOpen, setIsVenueDialogOpen] = useState(false);
     const [errors, setErrors] = useState({});
@@ -66,15 +68,34 @@ const CreateEvent = () => {
     const [venues, setVenues] = useState([]);
     const [venueRequest, setVenueRequest] = useState({
         name: "",
-        address: "", // New
-        city: "",    // Already there in your old form state, ensure it's used
-        capacity: "", // Organizer's estimate
-        is_seated: false, // New
-        requested_layout_rows: '', // New
-        requested_layout_cols: '', // New
-        description: "", // This was 'notes' in your old form state, maps to 'notes' in DB
+        address: "",
+        city: "",
+        capacity: "",
+        is_seated: false,
+        requested_layout_rows: '',
+        requested_layout_cols: '',
+        description: "",
     });
-    const [seatAssignments, setSeatAssignments] = useState({}); // For seated venues
+    const [seatAssignments, setSeatAssignments] = useState({});
+
+    const resetForm = () => {
+        setFormData({
+            title: "",
+            description: "",
+            eventType: "",
+            startDate: null,
+            endDate: null,
+            startTime: "",
+            endTime: "",
+            venue: "",
+            rules: "",
+            images: [],
+        });
+        setTicketTiers([getInitialTier()]);
+        setSelectedVenue(null);
+        setSeatAssignments({});
+        setErrors({});
+    };
 
     // ... (useEffect for fetchVenues remains the same) ...
     useEffect(() => {
@@ -324,10 +345,10 @@ const CreateEvent = () => {
             name: venueRequest.name,
             address: venueRequest.address,
             city: venueRequest.city,
-            capacity: venueRequest.capacity, // Will be sent as text
+            capacity: venueRequest.capacity,
             is_seated: venueRequest.is_seated,
-            notes: venueRequest.description, // Map description field to notes
-            organizer_account_id: user.account_id, // Assuming user.account_id is the organizer's account id
+            notes: venueRequest.description,
+            organizer_account_id: user.account_id,
         };
 
         if (venueRequest.is_seated) {
@@ -338,38 +359,46 @@ const CreateEvent = () => {
         try {
             console.log(payload);
             await apiClient.post("/venue/request", payload);
-            alert("Venue request submitted successfully! An admin will review it shortly.");
+            toast({
+                title: "Success!",
+                description: "Venue request submitted successfully! An admin will review it shortly.",
+            });
             setIsVenueDialogOpen(false);
             setVenueRequest({name: "", address: "", city: "", capacity: "", is_seated: false, requested_layout_rows: '', requested_layout_cols: '', description: ""});
-
-            navigate('/my-events');
         } catch (error) {
             console.error("Error submitting venue request:", error);
             setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: error.data?.message || "Failed to submit venue request." }}));
-            alert(error.data?.message || "There was an issue submitting your venue request. Please try again.");
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error.data?.message || "There was an issue submitting your venue request. Please try again.",
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleSubmit = async (e) => { /* ... same as before, it correctly strips the 'id' from tiers ... */
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!user || !user.account_id) {
             setErrors(prev => ({ ...prev, formApi: "User not authenticated or account ID missing. Cannot create event." }));
-            alert("Authentication error. Please log in again.");
+            toast({
+                variant: "destructive",
+                title: "Authentication Error",
+                description: "Please log in again.",
+            });
             return;
         }
 
-
         if (!validateForm()) {
-            // Let user see inline errors, maybe set a general form error too
             setErrors(prev => ({ ...prev, formApi: "Please correct the errors in the form."}));
             return;
         }
-        setIsSubmitting(true);
-        setErrors(prev => ({ ...prev, formApi: null })); // Clear previous general form error
 
+        setIsLoading(true);
+        setIsSubmitting(true);
+        setErrors(prev => ({ ...prev, formApi: null }));
 
         const data = new FormData();
 
@@ -402,18 +431,40 @@ const CreateEvent = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log("Event created:", response.data);
-            alert("Event created successfully!");
-            navigate('/my-events');
+            
+            toast({
+                title: "Success!",
+                description: "Event created successfully!",
+            });
+            
+            // Reset the form after successful creation
+            resetForm();
+            
         } catch (error) {
             console.error("Error creating event:", error);
             const errorMsg = error.data?.message || error.message || "Error creating event. Please try again.";
-            setErrors(prev => ({ ...prev, formApi: errorMsg })); // Display API error
-            alert(errorMsg);
+            setErrors(prev => ({ ...prev, formApi: errorMsg }));
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: errorMsg,
+            });
         } finally {
+            setIsLoading(false);
             setIsSubmitting(false);
         }
     };
 
+    if (isLoading) {
+        return (
+            <Layout>
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                    <p className="ml-4 text-xl">Creating your event...</p>
+                </div>
+            </Layout>
+        );
+    }
 
     return (
         <Layout>
@@ -569,26 +620,46 @@ const CreateEvent = () => {
 
                                 {/* Conditional Section for Seated Venue Layout */}
                                 {venueRequest.is_seated && (
-                                    <div className="col-span-4 space-y-4 border-t pt-4 mt-2"> {/* Group seated venue inputs */}
+                                    <div className="col-span-4 space-y-4 border-t pt-4 mt-2">
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="vr-rows" className="text-right">Layout Rows *</Label>
-                                            <Input id="vr-rows" type="number" value={venueRequest.requested_layout_rows}
-                                                   onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_rows: e.target.value }))} // Keep as string for input, parse later
-                                                   className="col-span-3" placeholder="e.g., 10" min="1"/>
+                                            <Input 
+                                                id="vr-rows" 
+                                                type="number" 
+                                                value={venueRequest.requested_layout_rows}
+                                                onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_rows: e.target.value }))}
+                                                className="col-span-3" 
+                                                placeholder="e.g., 10" 
+                                                min="1"
+                                            />
                                         </div>
-                                        {errors.venueRequest?.requested_layout_rows && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.requested_layout_rows}</p>}
+                                        {errors.venueRequest?.requested_layout_rows && (
+                                            <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
+                                                {errors.venueRequest.requested_layout_rows}
+                                            </p>
+                                        )}
 
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="vr-cols" className="text-right">Seats per Row *</Label>
-                                            <Input id="vr-cols" type="number" value={venueRequest.requested_layout_cols}
-                                                   onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_cols: e.target.value }))} // Keep as string
-                                                   className="col-span-3" placeholder="e.g., 20" min="1"/>
+                                            <Input 
+                                                id="vr-cols" 
+                                                type="number" 
+                                                value={venueRequest.requested_layout_cols}
+                                                onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_cols: e.target.value }))}
+                                                className="col-span-3" 
+                                                placeholder="e.g., 20" 
+                                                min="1"
+                                            />
                                         </div>
-                                        {errors.venueRequest?.requested_layout_cols && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.requested_layout_cols}</p>}
+                                        {errors.venueRequest?.requested_layout_cols && (
+                                            <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
+                                                {errors.venueRequest.requested_layout_cols}
+                                            </p>
+                                        )}
 
                                         {/* Render the preview if dimensions are valid numbers > 0 */}
                                         {(parseInt(venueRequest.requested_layout_rows, 10) > 0 && parseInt(venueRequest.requested_layout_cols, 10) > 0) && (
-                                            <div className="col-span-4 mt-2"> {/* Ensure this div doesn't cause unnecessary expansion */}
+                                            <div className="col-span-4 mt-2">
                                                 <VenueRequestLayoutPreview
                                                     rows={parseInt(venueRequest.requested_layout_rows, 10)}
                                                     cols={parseInt(venueRequest.requested_layout_cols, 10)}
@@ -601,14 +672,33 @@ const CreateEvent = () => {
                                 {/* Notes */}
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="vr-description" className="text-right">Notes</Label>
-                                    <Textarea id="vr-description" value={venueRequest.description} onChange={(e) => setVenueRequest(prev => ({ ...prev, description: e.target.value }))} className="col-span-3" placeholder="Any additional details or notes..." />
+                                    <Textarea 
+                                        id="vr-description" 
+                                        value={venueRequest.description} 
+                                        onChange={(e) => setVenueRequest(prev => ({ ...prev, description: e.target.value }))} 
+                                        className="col-span-3" 
+                                        placeholder="Any additional details or notes..." 
+                                    />
                                 </div>
-                                {errors.venueRequest?.form && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.form}</p>}
+                                {errors.venueRequest?.form && (
+                                    <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
+                                        {errors.venueRequest.form}
+                                    </p>
+                                )}
                             </div>
 
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsVenueDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
-                                <Button onClick={submitVenueRequest} disabled={isSubmitting}>
+                                <Button 
+                                    variant="outline" 
+                                    onClick={() => setIsVenueDialogOpen(false)} 
+                                    disabled={isSubmitting}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button 
+                                    onClick={submitVenueRequest} 
+                                    disabled={isSubmitting}
+                                >
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                     Submit Request
                                 </Button>
@@ -628,13 +718,23 @@ const CreateEvent = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {errors.ticketTiersGeneral && <Alert variant="destructive"><AlertDescription>{errors.ticketTiersGeneral}</AlertDescription></Alert>}
+                            {errors.ticketTiersGeneral && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{errors.ticketTiersGeneral}</AlertDescription>
+                                </Alert>
+                            )}
                             {ticketTiers.map((tier, index) => (
-                                <Card key={tier.id} className="p-4 space-y-3 bg-muted/40"> {/* Use key={tier.id} */}
+                                <Card key={tier.id} className="p-4 space-y-3 bg-muted/40">
                                     <div className="flex justify-between items-center">
                                         <Label className="text-base font-semibold">Tier {index + 1}</Label>
                                         {ticketTiers.length > 1 && (
-                                            <Button type="button" variant="ghost" size="sm" onClick={() => removeTier(tier.id)} className="text-red-500 hover:text-red-700">
+                                            <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                onClick={() => removeTier(tier.id)} 
+                                                className="text-red-500 hover:text-red-700"
+                                            >
                                                 <Trash2 className="h-4 w-4 mr-1" /> Remove
                                             </Button>
                                         )}
@@ -649,7 +749,11 @@ const CreateEvent = () => {
                                                 placeholder="e.g., General, VIP"
                                                 className={errors.ticketTiers?.[tier.id]?.tierName ? "border-red-500" : ""}
                                             />
-                                            {errors.ticketTiers?.[tier.id]?.tierName && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].tierName}</p>}
+                                            {errors.ticketTiers?.[tier.id]?.tierName && (
+                                                <p className="text-xs text-red-500 mt-1">
+                                                    {errors.ticketTiers[tier.id].tierName}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="space-y-1 md:col-span-1">
                                             <Label htmlFor={`price-${tier.id}`}>Price (USD) *</Label>
@@ -666,7 +770,11 @@ const CreateEvent = () => {
                                                     className={`pl-8 ${errors.ticketTiers?.[tier.id]?.price ? "border-red-500" : ""}`}
                                                 />
                                             </div>
-                                            {errors.ticketTiers?.[tier.id]?.price && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].price}</p>}
+                                            {errors.ticketTiers?.[tier.id]?.price && (
+                                                <p className="text-xs text-red-500 mt-1">
+                                                    {errors.ticketTiers[tier.id].price}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="space-y-1 md:col-span-1">
                                             <Label htmlFor={`quantity-${tier.id}`}>Quantity *</Label>
@@ -683,12 +791,21 @@ const CreateEvent = () => {
                                                     className={`pl-8 ${errors.ticketTiers?.[tier.id]?.quantity ? "border-red-500" : ""}`}
                                                 />
                                             </div>
-                                            {errors.ticketTiers?.[tier.id]?.quantity && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].quantity}</p>}
+                                            {errors.ticketTiers?.[tier.id]?.quantity && (
+                                                <p className="text-xs text-red-500 mt-1">
+                                                    {errors.ticketTiers[tier.id].quantity}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </Card>
                             ))}
-                            <Button type="button" variant="outline" onClick={addTier} className="w-full mt-2">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={addTier} 
+                                className="w-full mt-2"
+                            >
                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Tier
                             </Button>
                         </CardContent>
@@ -707,25 +824,49 @@ const CreateEvent = () => {
 
                     {/* Event Images Card */}
                     <Card>
-                        <CardHeader><CardTitle>Event Images</CardTitle><CardDescription>Upload at least one image for your event</CardDescription></CardHeader>
+                        <CardHeader>
+                            <CardTitle>Event Images</CardTitle>
+                            <CardDescription>Upload at least one image for your event</CardDescription>
+                        </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="images">Upload Images *</Label>
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    <input id="images" type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                    <input 
+                                        id="images" 
+                                        type="file" 
+                                        multiple 
+                                        accept="image/*" 
+                                        onChange={handleImageUpload} 
+                                        className="hidden" 
+                                    />
                                     <Label htmlFor="images" className="cursor-pointer">
                                         <Upload className="mx-auto h-12 w-12 text-gray-400" />
                                         <p className="mt-2 text-sm text-gray-600">Click to upload or drag and drop</p>
                                     </Label>
                                 </div>
-                                {errors.images && <p className="text-sm text-red-500">{errors.images}</p>}
+                                {errors.images && (
+                                    <p className="text-sm text-red-500">{errors.images}</p>
+                                )}
                             </div>
                             {formData.images.length > 0 && (
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     {formData.images.map((image) => (
                                         <div key={image.id} className="relative group">
-                                            <img src={image.url || "/placeholder.svg"} alt={image.name} className="w-full h-32 object-cover rounded-lg" />
-                                            <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeImage(image.id)}> <X className="h-4 w-4" /> </Button>
+                                            <img 
+                                                src={image.url || "/placeholder.svg"} 
+                                                alt={image.name} 
+                                                className="w-full h-32 object-cover rounded-lg" 
+                                            />
+                                            <Button 
+                                                type="button" 
+                                                variant="destructive" 
+                                                size="icon" 
+                                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                                onClick={() => removeImage(image.id)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
                                         </div>
                                     ))}
                                 </div>
@@ -733,23 +874,41 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-
                     {/* Additional Information Card */}
                     <Card>
-                        <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
+                        <CardHeader>
+                            <CardTitle>Additional Information</CardTitle>
+                        </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
                                 <Label htmlFor="rules">Event Rules</Label>
-                                <Textarea id="rules" value={formData.rules} onChange={(e) => handleInputChange("rules", e.target.value)} placeholder="List any rules or guidelines for attendees" rows={3} />
+                                <Textarea 
+                                    id="rules" 
+                                    value={formData.rules} 
+                                    onChange={(e) => handleInputChange("rules", e.target.value)} 
+                                    placeholder="List any rules or guidelines for attendees" 
+                                    rows={3} 
+                                />
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Submit Button */}
-                    {errors.formApi && (<Alert variant="destructive" className="mt-4"><AlertDescription>{errors.formApi}</AlertDescription></Alert>)}
+                    {errors.formApi && (
+                        <Alert variant="destructive" className="mt-4">
+                            <AlertDescription>{errors.formApi}</AlertDescription>
+                        </Alert>
+                    )}
                     <div className="flex justify-end gap-4">
-                        <Button type="button" variant="outline" asChild> <Link to="/my-events">Cancel</Link> </Button>
-                        <Button type="submit" disabled={isSubmitting || !user || user.role !== 'organizer'}> {isSubmitting ? "Creating Event..." : "Create Event"} </Button>
+                        <Button type="button" variant="outline" asChild>
+                            <Link to="/my-events">Cancel</Link>
+                        </Button>
+                        <Button 
+                            type="submit" 
+                            disabled={isSubmitting || !user || user.role !== 'organizer'}
+                        >
+                            {isSubmitting ? "Creating Event..." : "Create Event"}
+                        </Button>
                     </div>
                 </form>
             </div>

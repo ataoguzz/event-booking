@@ -21,6 +21,7 @@ import apiClient from '@/helpers/apiCore.js'; // Assuming this is your configure
 import { format, parseISO } from 'date-fns';
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import {EditEventForm} from "@/pages/Organizer/EditEventForm.jsx";
+import { useToast } from "@/hooks/use-toast";
 
 const mapCategoryToType = (category) => {
   const mapping = {
@@ -39,6 +40,7 @@ const mapCategoryToType = (category) => {
 
 export default function MyEvents() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [allFetchedEvents, setAllFetchedEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,18 +61,17 @@ export default function MyEvents() {
   const [eventToDelete, setEventToDelete] = useState(null); // Will store { id, title }
   const [isDeleting, setIsDeleting] = useState(false); // Loading state for th
 
-  const fetchMyEvents = useCallback(async () => { // useCallback to avoid re-creating on every render
+  const fetchMyEvents = useCallback(async () => {
     if (!user || !user.account_id) {
       setAllFetchedEvents([]);
       setIsLoading(false);
-      // setError("User not authenticated."); // Optionally set an error
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
       const response = await apiClient.post('/event/my-events', { organizerAccountId: user.account_id });
-      const transformedEvents = response.data.map(event => ({ /* ... as before ... */
+      const transformedEvents = response.data.map(event => ({
         id: event.event_id,
         title: event.title,
         type: mapCategoryToType(event.category),
@@ -88,27 +89,36 @@ export default function MyEvents() {
     } catch (err) {
       console.error('Error fetching events:', err);
       setError(err.data?.message || err.message || 'Failed to fetch events.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.data?.message || err.message || 'Failed to fetch events.',
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [user]); // Depend on user object
+  }, [user, toast]);
 
   useEffect(() => {
     fetchMyEvents();
-  }, [fetchMyEvents]); // fetchMyEvents is now stable due to useCallback
+  }, [fetchMyEvents]);
 
 
   const handleViewEvent = async (eventId) => {
     setIsLoadingViewDetails(true);
     setIsViewDialogOpen(true);
-    setSelectedEventForView(null); // Clear previous
+    setSelectedEventForView(null);
     try {
-      const response = await apiClient.get(`/event/${eventId}`); // API endpoint for single event
+      const response = await apiClient.get(`/event/${eventId}`);
       setSelectedEventForView(response.data);
     } catch (err) {
       console.error(`Error fetching details for event ${eventId}:`, err);
-      alert(`Error: ${err.data?.message || err.message || 'Failed to load event details.'}`);
-      setIsViewDialogOpen(false); // Close dialog on error
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.data?.message || err.message || 'Failed to load event details.',
+      });
+      setIsViewDialogOpen(false);
     } finally {
       setIsLoadingViewDetails(false);
     }
@@ -118,16 +128,19 @@ export default function MyEvents() {
   const handleOpenEditDialog = async (eventId) => {
     if (!eventId) return;
     setIsLoadingEditDetails(true);
-    setSelectedEventForEdit(null); // Clear previous
-    setIsEditDialogOpen(true); // Open dialog immediately to show loader inside
+    setSelectedEventForEdit(null);
+    setIsEditDialogOpen(true);
     try {
-      // Fetch the full, most up-to-date event details including all images and ticket_tiers
       const response = await apiClient.get(`/event/${eventId}`);
-      setSelectedEventForEdit(response.data); // This data will be passed to EditEventForm
+      setSelectedEventForEdit(response.data);
     } catch (err) {
       console.error(`Error fetching event ${eventId} for edit:`, err);
-      alert(`Error: ${err.data?.message || err.message || 'Failed to load event data for editing.'}`);
-      setIsEditDialogOpen(false); // Close dialog on error
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.data?.message || err.message || 'Failed to load event data for editing.',
+      });
+      setIsEditDialogOpen(false);
     } finally {
       setIsLoadingEditDetails(false);
     }
@@ -142,24 +155,35 @@ export default function MyEvents() {
 
   const confirmDeleteEvent = async () => {
     if (!eventToDelete || !user || !user.account_id) {
-      alert("Error: Event data missing or user not authenticated for deletion.");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Event data missing or user not authenticated for deletion.",
+      });
       setIsDeleteDialogOpen(false);
       setEventToDelete(null);
       return;
     }
 
-    setIsDeleting(true); // Start delete-specific loading
-    setError(null); // Clear previous main list errors
+    setIsDeleting(true);
+    setError(null);
 
     try {
       await apiClient.delete(`/event/${eventToDelete.id}`, {
-        data: { organizerAccountId: user.account_id.toString() } // Send organizerAccountId in body
+        data: { organizerAccountId: user.account_id.toString() }
       });
-      console.log(`Event "${eventToDelete.title}" (ID: ${eventToDelete.id}) deleted.`);
-      await fetchMyEvents(); // REFRESH THE LIST
+      toast({
+        title: "Success",
+        description: `Event "${eventToDelete.title}" has been deleted successfully.`,
+      });
+      await fetchMyEvents();
     } catch (err) {
       console.error(`Error deleting event ${eventToDelete.id}:`, err);
-      alert(err.data?.message || `Failed to delete event "${eventToDelete.title}". Please try again.`);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.data?.message || `Failed to delete event "${eventToDelete.title}". Please try again.`,
+      });
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -208,25 +232,29 @@ export default function MyEvents() {
 
   if (isLoading) {
     return (
-        <Layout>
+      <Layout>
+        <div className="container mx-auto py-10">
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-16 w-16 animate-spin text-primary" />
             <p className="ml-4 text-xl">Loading your events...</p>
           </div>
-        </Layout>
+        </div>
+      </Layout>
     );
   }
 
 
   if (error) {
     return (
-        <Layout>
+      <Layout>
+        <div className="container mx-auto py-10">
           <div className="text-center py-16 text-red-600">
             <h3 className="text-xl font-medium">Error loading events</h3>
             <p className="mt-1">{error}</p>
-            <Button onClick={() => window.location.reload()} className="mt-4">Try Again</Button>
+            <Button onClick={() => fetchMyEvents()} className="mt-4">Try Again</Button>
           </div>
-        </Layout>
+        </div>
+      </Layout>
     );
   }
 
@@ -317,7 +345,12 @@ export default function MyEvents() {
         />
 
         {isEditDialogOpen && (
-            <Dialog open={isEditDialogOpen} onOpenChange={() => {setIsEditDialogOpen(false); setSelectedEventForEdit(null);}}>
+            <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+              if (!open) {
+                setIsEditDialogOpen(false);
+                setSelectedEventForEdit(null);
+              }
+            }}>
               <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Edit Event: {isLoadingEditDetails || !selectedEventForEdit ? "Loading..." : selectedEventForEdit.title}</DialogTitle>
@@ -325,23 +358,51 @@ export default function MyEvents() {
                     Modify your event details below.
                   </DialogDescription>
                 </DialogHeader>
-                {isLoadingEditDetails || !selectedEventForEdit ? (
+                {isLoadingEditDetails ? (
                     <div className="flex justify-center items-center py-20">
-                      <Loader2 className="h-12 w-12 animate-spin" />
+                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      <p className="ml-4">Loading event details...</p>
                     </div>
-                ) : (
+                ) : selectedEventForEdit ? (
                     <EditEventForm
                         eventToEdit={selectedEventForEdit}
                         onClose={() => {
                           setIsEditDialogOpen(false);
                           setSelectedEventForEdit(null);
                         }}
-                        onEventSaved={() => {
-                          setIsEditDialogOpen(false);
-                          setSelectedEventForEdit(null);
-                          fetchMyEvents(); // Re-fetch the list of events after saving
+                        onEventSaved={async () => {
+                          try {
+                            setIsLoading(true); // Show loading state while refreshing
+                            await fetchMyEvents(); // Wait for the fetch to complete
+                            toast({
+                              title: "Success",
+                              description: "Event updated successfully!",
+                            });
+                            setIsEditDialogOpen(false);
+                            setSelectedEventForEdit(null);
+                          } catch (error) {
+                            console.error('Error refreshing events:', error);
+                            toast({
+                              variant: "destructive",
+                              title: "Error",
+                              description: "Event was updated but failed to refresh the list. Please refresh the page.",
+                            });
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        onError={(error) => {
+                          toast({
+                            variant: "destructive",
+                            title: "Error",
+                            description: error.message || "Failed to update event. Please try again.",
+                          });
                         }}
                     />
+                ) : (
+                    <div className="flex justify-center items-center py-20">
+                      <p className="text-muted-foreground">Failed to load event details. Please try again.</p>
+                    </div>
                 )}
               </DialogContent>
             </Dialog>
