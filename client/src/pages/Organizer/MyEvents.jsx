@@ -20,6 +20,7 @@ import { Calendar, Clock, MapPin, Users, Edit, Eye, Trash2, Search, Filter, Load
 import apiClient from '@/helpers/apiCore.js'; // Assuming this is your configured apiClient
 import { format, parseISO } from 'date-fns';
 import { useAuth } from "@/contexts/AuthContext.jsx";
+import {EditEventForm} from "@/pages/Organizer/EditEventForm.jsx";
 
 const SERVER_BASE_URL ='http://localhost:3001';
 
@@ -52,9 +53,13 @@ export default function MyEvents() {
   const [selectedEventForView, setSelectedEventForView] = useState(null);
   const [isLoadingViewDetails, setIsLoadingViewDetails] = useState(false);
 
-  // State for Edit Dialog (to be implemented later)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedEventForEdit, setSelectedEventForEdit] = useState(null);
+  const [isLoadingEditDetails, setIsLoadingEditDetails] = useState(false);
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null); // Will store { id, title }
+  const [isDeleting, setIsDeleting] = useState(false); // Loading state for th
 
   const fetchMyEvents = useCallback(async () => { // useCallback to avoid re-creating on every render
     if (!user || !user.account_id) {
@@ -111,35 +116,71 @@ export default function MyEvents() {
     }
   };
 
-  const handleOpenEditDialog = async (event) => {
-    // For now, just log. We will implement this later.
-    console.log("Open Edit Dialog for:", event);
-    // setSelectedEventForEdit(event); // If passing basic data
-    // To fetch full data for edit:
-    // setIsLoadingEditDetails(true);
-    // setIsEditDialogOpen(true);
-    // try {
-    //   const response = await apiClient.get(`/event/${event.id}`); // Or a specific edit endpoint
-    //   setSelectedEventForEdit(response.data);
-    // } catch (err) { /* handle error */ }
-    // finally { setIsLoadingEditDetails(false); }
-    alert("Edit functionality to be implemented as a dialog.");
+
+  const handleOpenEditDialog = async (eventId) => {
+    if (!eventId) return;
+    setIsLoadingEditDetails(true);
+    setSelectedEventForEdit(null); // Clear previous
+    setIsEditDialogOpen(true); // Open dialog immediately to show loader inside
+    try {
+      // Fetch the full, most up-to-date event details including all images and ticket_tiers
+      const response = await apiClient.get(`/event/${eventId}`);
+      setSelectedEventForEdit(response.data); // This data will be passed to EditEventForm
+    } catch (err) {
+      console.error(`Error fetching event ${eventId} for edit:`, err);
+      alert(`Error: ${err.data?.message || err.message || 'Failed to load event data for editing.'}`);
+      setIsEditDialogOpen(false); // Close dialog on error
+    } finally {
+      setIsLoadingEditDetails(false);
+    }
   };
 
+  const openDeleteConfirmDialog = (eventId, eventTitle) => {
+    setEventToDelete({ id: eventId, title: eventTitle });
+    setIsDeleteDialogOpen(true);
+  };
+
+  // MyEvents.jsx
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete || !user || !user.account_id) {
+      alert("Error: Event data missing or user not authenticated for deletion.");
+      setIsDeleteDialogOpen(false);
+      setEventToDelete(null);
+      return;
+    }
+
+    setIsDeleting(true); // Start delete-specific loading
+    setError(null); // Clear previous main list errors
+
+    try {
+      await apiClient.delete(`/event/${eventToDelete.id}`, {
+        data: { organizerAccountId: user.account_id.toString() } // Send organizerAccountId in body
+      });
+      console.log(`Event "${eventToDelete.title}" (ID: ${eventToDelete.id}) deleted.`);
+      await fetchMyEvents(); // REFRESH THE LIST
+    } catch (err) {
+      console.error(`Error deleting event ${eventToDelete.id}:`, err);
+      alert(err.data?.message || `Failed to delete event "${eventToDelete.title}". Please try again.`);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setEventToDelete(null);
+    }
+  };
 
   const handleDeleteEvent = async (eventId, eventTitle) => {
     if (!window.confirm(`Are you sure you want to delete the event "${eventTitle}"? This action cannot be undone.`)) {
       return;
     }
 
-    setIsLoading(true); // You might want a more specific loading state for delete
+    setIsLoading(true);
     try {
-      await apiClient.delete(`/event/${eventId}`); // Matches router: DELETE /api/event/:eventId
-      alert(`Event "${eventTitle}" deleted successfully.`);
-      // Update the local state to remove the deleted event
+      await apiClient.delete(`/event/${eventId}`, {
+        data: { organizerAccountId: user.account_id.toString() }
+      });
       setAllFetchedEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-      // Or trigger a re-fetch:
-      // setRefreshTrigger(prev => prev + 1); // And add refreshTrigger to useEffect dependency array
+      await fetchMyEvents();
     } catch (err) {
       console.error(`Error deleting event ${eventId}:`, err);
       setError(err.data?.message || err.message || `Failed to delete event "${eventTitle}".`);
@@ -163,10 +204,7 @@ export default function MyEvents() {
 
   const publishedEvents = filteredEvents.filter(event => event.status === 'published');
   const draftEvents = filteredEvents.filter(event => event.status === 'draft');
-  // You might want to add other statuses if your backend returns them (e.g., 'cancelled', 'completed')
-  // and if you want to display them in separate tabs or filter by them.
 
-  // Event types for filter dropdown - dynamically generate from fetched events or keep static list
   const uniqueEventTypes = ['all', ...new Set(allFetchedEvents.map(event => event.type))];
 
 
@@ -244,9 +282,6 @@ export default function MyEvents() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="published">Published</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
-                  {/* Add other relevant statuses from your backend enum if needed */}
-                  {/* <SelectItem value="cancelled">Cancelled</SelectItem> */}
-                  {/* <SelectItem value="completed">Completed</SelectItem> */}
                 </SelectContent>
               </Select>
             </div>
@@ -261,15 +296,15 @@ export default function MyEvents() {
             </TabsList>
 
             <TabsContent value="all" className="mt-0">
-              <EventCards events={filteredEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
+              <EventCards events={filteredEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEventConfirm={openDeleteConfirmDialog} />
             </TabsContent>
 
             <TabsContent value="published" className="mt-0">
-              <EventCards events={publishedEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
+              <EventCards events={publishedEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={openDeleteConfirmDialog} />
             </TabsContent>
 
             <TabsContent value="draft" className="mt-0">
-              <EventCards events={draftEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={handleDeleteEvent} />
+              <EventCards events={draftEvents} onViewEvent={handleViewEvent} onEditEvent={handleOpenEditDialog} onDeleteEvent={openDeleteConfirmDialog} />
             </TabsContent>
           </Tabs>
         </div>
@@ -283,22 +318,75 @@ export default function MyEvents() {
             }}
         />
 
-        {/* Edit Event Dialog (Placeholder for now) */}
-        {isEditDialogOpen && selectedEventForEdit && (
-            <Dialog open={isEditDialogOpen} onOpenChange={() => setIsEditDialogOpen(false)}>
-              <DialogContent className="max-w-4xl">
+        {isEditDialogOpen && (
+            <Dialog open={isEditDialogOpen} onOpenChange={() => {setIsEditDialogOpen(false); setSelectedEventForEdit(null);}}>
+              <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col">
                 <DialogHeader>
-                  <DialogTitle>Edit Event: {selectedEventForEdit.title}</DialogTitle>
+                  <DialogTitle>Edit Event: {isLoadingEditDetails || !selectedEventForEdit ? "Loading..." : selectedEventForEdit.title}</DialogTitle>
                   <DialogDescription>
-                    Make changes to your event details below. (Edit form UI to be built)
+                    Modify your event details below.
                   </DialogDescription>
                 </DialogHeader>
-                {/* Edit form will go here, similar to CreateEvent but pre-filled */}
-                <p>Edit form for '{selectedEventForEdit.title}' will be here.</p>
-                <p>Current data to edit: {JSON.stringify(selectedEventForEdit._original)}</p>
-                <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                  <Button type="submit" form="edit-event-form">Save Changes</Button> {/* form attribute links to form id */}
+                {isLoadingEditDetails || !selectedEventForEdit ? (
+                    <div className="flex justify-center items-center py-20">
+                      <Loader2 className="h-12 w-12 animate-spin" />
+                    </div>
+                ) : (
+                    <EditEventForm
+                        eventToEdit={selectedEventForEdit}
+                        onClose={() => {
+                          setIsEditDialogOpen(false);
+                          setSelectedEventForEdit(null);
+                        }}
+                        onEventSaved={() => {
+                          setIsEditDialogOpen(false);
+                          setSelectedEventForEdit(null);
+                          fetchMyEvents(); // Re-fetch the list of events after saving
+                        }}
+                    />
+                )}
+              </DialogContent>
+            </Dialog>
+        )}
+
+        {eventToDelete && (
+            <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setIsDeleteDialogOpen(false);
+                setEventToDelete(null); // Clear on close if not through confirm
+              }
+            }}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Deletion</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete the event "{eventToDelete.title}"?
+                    This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="mt-4">
+                  <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsDeleteDialogOpen(false);
+                        setEventToDelete(null);
+                      }}
+                      disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                      variant="destructive"
+                      onClick={confirmDeleteEvent}
+                      disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Delete Event
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -381,7 +469,7 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
   );
 }
 
-function EventCards({ events, onViewEvent, onEditEvent, onDeleteEvent }) {
+function EventCards({ events, onViewEvent, onEditEvent, onDeleteEventConfirm }) {
   if (events.length === 0) {
     return (
         <div className="text-center py-16 border rounded-lg bg-card">
@@ -447,14 +535,14 @@ function EventCards({ events, onViewEvent, onEditEvent, onDeleteEvent }) {
                 </Button>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEditEvent(event)}> {/* Changed from Link, pass full event for prefill */}
+                  <Button variant="outline" size="sm" onClick={() => onEditEvent(event.id)}> {/* Changed from Link, pass full event for prefill */}
                     <Edit size={14} className="mr-1.5" /> Edit
                   </Button>
 
                   <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => onDeleteEvent(event.id, event.title)} // Call onDeleteEvent
+                      onClick={() => onDeleteEventConfirm(event.id, event.title)} // Call onDeleteEvent
                   >
                     <Trash2 size={14} className="mr-1.5" />
                     {/* Delete */}

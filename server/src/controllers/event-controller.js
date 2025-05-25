@@ -1,4 +1,6 @@
 import { getClient } from "../utils/db.js";
+import path from "path";
+import fs from "fs";
 
 const mapEventTypeToCategory = (eventType) => {
     const mapping = {
@@ -195,24 +197,59 @@ export const getOrganizerEvents = async (req, res, next) => {
     }
 };
 
-export const deleteEvent = async (req, res, next) => {
-    // req.user should be populated by checkAuth
-    if (!req.user || !req.user.accountId) {
-        return res.status(401).json({ message: "Authentication required." });
-    }
-
+export const updateEvent = async (req, res, next) => {
+    console.log("UPDATE EVENT req.body:", JSON.stringify(req.body, null, 2)); // Log the received body
+    console.log("UPDATE EVENT req.files:", req.files); // Log uploaded files
     const { eventId } = req.params;
-
-    if (!eventId || isNaN(parseInt(eventId))) {
-        return res.status(400).json({ message: "Valid Event ID is required." });
-    }
     const parsedEventId = parseInt(eventId, 10);
+
+    if (isNaN(parsedEventId)) {
+        return res.status(400).json({ message: "Invalid Event ID." });
+    }
+
+    const {
+        title, description, eventType,
+        startDate, startTime, endDate, endTime,
+        venue: venueIdStr, rules,
+        organizerAccountId,
+        ticketTiersData: ticketTiersDataString,
+    } = req.body;
+
+    if (!organizerAccountId) {
+        return res.status(400).json({ message: "Organizer Account ID is required in the request body to perform an update." });
+    }
+    const parsedPerformingOrganizerId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedPerformingOrganizerId) || parsedPerformingOrganizerId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+    }
+
+    if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venueIdStr || !ticketTiersDataString) {
+        return res.status(400).json({ message: "Missing required fields for update." });
+    }
+    let ticketTiers; try { ticketTiers = JSON.parse(ticketTiersDataString); /* + validation */ } catch (e) { /* error */ }
+    let startAtIso, endAtIso;
+    try {
+        startAtIso = new Date(`${startDate}T${startTime}`).toISOString();
+        endAtIso = new Date(`${endDate}T${endTime}`).toISOString();
+        if (new Date(endAtIso) <= new Date(startAtIso)) {
+            return res.status(400).json({ message: "End date/time must be after start date/time." });
+        }
+    } catch (e) {
+        console.error("Date parsing error during update:", e);
+        return res.status(400).json({ message: "Invalid date or time format provided for update." });
+    }
+    const category = mapEventTypeToCategory(eventType);
+    const venueId = parseInt(venueIdStr, 10); // Parse venueIdStr to venueId
+    if (isNaN(venueId) || venueId <= 0) { // Add validation for parsed venueId
+        return res.status(400).json({ message: "Invalid Venue ID format." });
+    }
+    const basePriceForEvent = ticketTiers.length > 0 && ticketTiers[0].price !== undefined ? parseFloat(ticketTiers[0].price) : 0;
 
     const client = await getClient();
     try {
         await client.query('BEGIN');
 
-        const eventCheckQuery = 'SELECT organizer_account_id FROM events WHERE event_id = $1';
+        const eventCheckQuery = 'SELECT organizer_account_id, hero_image_url FROM events WHERE event_id = $1';
         const eventCheckResult = await client.query(eventCheckQuery, [parsedEventId]);
 
         if (eventCheckResult.rows.length === 0) {
@@ -220,29 +257,143 @@ export const deleteEvent = async (req, res, next) => {
             return res.status(404).json({ message: "Event not found." });
         }
 
-        const deleteEventQuery = 'DELETE FROM events WHERE event_id = $1 RETURNING event_id, title';
-        const deletedEventResult = await client.query(deleteEventQuery, [parsedEventId]);
+        const eventOwnerId = eventCheckResult.rows[0].organizer_account_id;
+        let currentHeroImageUrl = eventCheckResult.rows[0].hero_image_url;
 
-        if (deletedEventResult.rowCount === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ message: "Event not found during deletion attempt." });
+        // 3. Handle Image Updates (Simplified: Delete all old images, then add new ones if provided)
+        let newHeroImageUrl = currentHeroImageUrl;
+        if (req.files && req.files.length > 0) {
+            const oldImagesResult = await client.query('SELECT url FROM event_images WHERE event_id = $1', [parsedEventId]);
+            for (const oldImage of oldImagesResult.rows) {
+                if (oldImage.url) {
+                    try {
+                        const imagePath = path.join(projectRootDir, 'uploads', path.basename(oldImage.url));
+                        await fs.unlink(imagePath);
+                    } catch (fileError) { console.warn(`Could not delete old image file ${oldImage.url}: ${fileError.message}`); }
+                }
+            }
+            await client.query('DELETE FROM event_images WHERE event_id = $1', [parsedEventId]);
+            newHeroImageUrl = `/uploads/${req.files[0].filename}`;
+            const imageInsertPromises = req.files.map(file => {
+                const imageUrl = `/uploads/${file.filename}`;
+                return client.query('INSERT INTO event_images (event_id, url, caption) VALUES ($1, $2, $3)',
+                    [parsedEventId, imageUrl, file.originalname]);
+            });
+            await Promise.all(imageInsertPromises);
+        }
+
+        // 4. Update basic event fields in 'events' table
+        const eventUpdateQuery = `
+            UPDATE events SET
+                title = $1, description = $2, category = $3, venue_id = $4, rules = $5,
+                start_at = $6, end_at = $7, status = $8, base_price = $9, hero_image_url = $10, 
+                updated_at = NOW()
+            WHERE event_id = $11 AND organizer_account_id = $12; -- Ensure we only update if still owner
+        `;
+        const eventUpdateValues = [
+            title, description, category, venueId, rules || null,
+            startAtIso, endAtIso, 'PUBLISHED', basePriceForEvent, newHeroImageUrl,
+            parsedEventId, eventOwnerId
+        ];
+        await client.query(eventUpdateQuery, eventUpdateValues);
+
+        await client.query('DELETE FROM tickets WHERE event_id = $1', [parsedEventId]);
+        await client.query('DELETE FROM event_ticket_tiers WHERE event_id = $1', [parsedEventId]);
+
+        for (const tier of ticketTiers) {
+            const tierResult = await client.query(
+                `INSERT INTO event_ticket_tiers (event_id, tier_name, price, quantity, description)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING tier_id;`,
+                [parsedEventId, tier.tierName, parseFloat(tier.price), parseInt(tier.quantity), tier.description || null]
+            );
+            const newTierId = tierResult.rows[0].tier_id;
+            const ticketGenerationPromises = [];
+            for (let i = 0; i < parseInt(tier.quantity); i++) {
+                ticketGenerationPromises.push(
+                    client.query(`INSERT INTO tickets (event_id, tier_id, status) VALUES ($1, $2, 'AVAILABLE')`,
+                        [parsedEventId, newTierId])
+                );
+            }
+            await Promise.all(ticketGenerationPromises);
         }
 
         await client.query('COMMIT');
-        res.status(200).json({ message: `Event "${deletedEventResult.rows[0].title}" (ID: ${deletedEventResult.rows[0].event_id}) deleted successfully.` });
+        res.status(200).json({ message: "Event updated successfully", event_id: parsedEventId });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error updating event ${parsedEventId}:`, error);
+        next(error);
+    } finally {
+        if (client) client.release();
+    }
+};
+
+export const deleteEvent = async (req, res, next) => {
+    const { eventId } = req.params;
+    const parsedEventId = parseInt(eventId, 10);
+
+    // Organizer ID performing the action, expected from the request body for consistency
+    // with your specified pattern for createEvent/updateEvent.
+    // For a DELETE, often the identity is purely from the token, but we'll follow your pattern.
+    const { organizerAccountId } = req.body;
+
+    if (isNaN(parsedEventId)) {
+        return res.status(400).json({ message: "Valid Event ID is required in URL." });
+    }
+    if (!organizerAccountId) {
+        return res.status(400).json({ message: "Organizer Account ID is required in the request body to perform a delete." });
+    }
+    const parsedPerformingOrganizerId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedPerformingOrganizerId) || parsedPerformingOrganizerId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+    }
+
+
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        const eventCheckQuery = 'SELECT organizer_account_id, title FROM events WHERE event_id = $1';
+        const eventCheckResult = await client.query(eventCheckQuery, [parsedEventId]);
+
+        if (eventCheckResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: "Event not found." });
+        }
+        const eventOwnerId = eventCheckResult.rows[0].organizer_account_id;
+        const eventTitle = eventCheckResult.rows[0].title;
+
+
+        const oldImagesResult = await client.query('SELECT url FROM event_images WHERE event_id = $1', [parsedEventId]);
+        for (const oldImage of oldImagesResult.rows) {
+            if (oldImage.url) {
+                try {
+                    const imagePath = path.join(projectRootDir, 'uploads', path.basename(oldImage.url));
+                    await fs.unlink(imagePath);
+                } catch (fileError) { console.warn(`Could not delete image file ${oldImage.url} for event ${parsedEventId}: ${fileError.message}`); }
+            }
+        }
+
+        const deleteEventQuery = 'DELETE FROM events WHERE event_id = $1 AND organizer_account_id = $2';
+        const deleteResult = await client.query(deleteEventQuery, [parsedEventId, parsedPerformingOrganizerId]);
+
+        if (deleteResult.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: "Event not found or not owned by the specified organizer during delete." });
+        }
+
+        await client.query('COMMIT');
+        res.status(200).json({ message: `Event "${eventTitle}" (ID: ${parsedEventId}) deleted successfully.` });
 
     } catch (error) {
         await client.query('ROLLBACK');
         console.error(`Error deleting event ${parsedEventId}:`, error);
         next(error);
     } finally {
-        if (client) {
-            client.release();
-        }
+        if (client) client.release();
     }
 };
-
-// server/controllers/event-controller.js
 
 export const getEventDetailsById = async (req, res, next) => {
     const { eventId } = req.params;
