@@ -457,7 +457,11 @@ export default function MyEvents() {
 function EventDetailsDialog({ event, isOpen, onClose }) {
   if (!event) return null;
 
-  const heroImage = event.hero_image_url || (event.images && event.images.length > 0 ? event.images[0].url : "https://via.placeholder.com/800x400?text=Event+Image");
+  const heroImage =
+    event.cover_url ||
+    event.hero_image_url ||
+    (event.images && event.images.length > 0 ? event.images[0].url : null) ||
+    "https://via.placeholder.com/800x400?text=Event+Image";
 
   return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -544,7 +548,12 @@ function EventCards({ events, onViewEvent, onEditEvent, onDeleteEventConfirm }) 
             <Card key={event.id} className="overflow-hidden flex flex-col">
               <div className="relative h-48 w-full">
                 <img
-                    src={event.image}
+                    src={
+                      event._original.cover_url ||
+                      event._original.hero_image_url ||
+                      (event._original.images && event._original.images.length > 0 ? event._original.images[0].url : null) ||
+                      "https://via.placeholder.com/300x200?text=No+Image"
+                    }
                     alt={event.title}
                     className="w-full h-full object-cover"
                     onError={(e) => { e.target.onerror = null; e.target.src="https://via.placeholder.com/300x200?text=Image+Error"; }} // Fallback for broken images

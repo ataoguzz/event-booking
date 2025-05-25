@@ -9,7 +9,6 @@ const Signup = React.lazy(() => import("../pages/Auth/Register.jsx"));
 // Home Pages
 const Home = React.lazy(() => import("../pages/Home/index.jsx"));
 const AttendeeHomepage = React.lazy(() => import("../pages/Home/AttendeeHomepage.jsx"));
-const OrganizerHome = React.lazy(() => import("../pages/Home/OrganizerHomepage.jsx"));
 const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx"));
 
 // Attendee Pages
@@ -45,11 +44,22 @@ const LoadComponent = ({ component }) => (
 );
 
 const AllRoutes = () => {
-    const {user} = useAuth();
+    const {user, isAuthenticated} = useAuth();
+
+    // If we're still loading, don't render anything (handled by parent)
+    if (!user && !isAuthenticated) {
+        return <Navigate to="/auth/login" />;
+    }
+
     return useRoutes([
         {
             path: "/",
-            element: <Navigate to="/home" />
+            element: user ? (
+                user.role === "organizer" ? <Navigate to="/my-events" /> :
+                user.role === "attendee" ? <Navigate to="/browse-events" /> :
+                user.role === "admin" ? <Navigate to="/dashboard" /> :
+                <Navigate to="/home" />
+            ) : <Navigate to="/auth/login" />
         },
         {
             path: "/login",
@@ -147,7 +157,12 @@ const AllRoutes = () => {
         },
         {
             path: "/home",
-            element: user ? <LoadComponent component={Home} /> : <Navigate to="/login" />
+            element: user ? (
+                user.role === "organizer" ? <Navigate to="/my-events" /> :
+                user.role === "attendee" ? <Navigate to="/browse-events" /> :
+                user.role === "admin" ? <Navigate to="/dashboard" /> :
+                <LoadComponent component={Home} />
+            ) : <Navigate to="/login" />
         },
         {
             path: "*",
