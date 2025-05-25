@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button.jsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.jsx";
 import { Input } from "@/components/ui/input.jsx";
@@ -13,8 +13,6 @@ import { cn } from "@/lib/utils.js";
 import { format, parseISO } from "date-fns";
 import apiClient from "@/helpers/apiCore.js";
 import { useAuth } from "@/contexts/AuthContext.jsx";
-
-const SERVER_BASE_URL = 'http://localhost:3001';
 
 const mapCategoryToType = (category) => {
     const mapping = {
@@ -42,14 +40,12 @@ const EditEventForm = ({ eventToEdit, onClose, onEventSaved }) => {
         endDate: null,
         startTime: "",
         endTime: "",
-        venue: "", // venue ID
+        venue: "", // 
         rules: "",
-        // Images and Tiers will be handled by separate states
     });
 
-    const [images, setImages] = useState([]); // For managing existing and new images
-    // Structure: { id: string | number, file?: File, url: string, name: string, isNew?: boolean, markedForDeletion?: boolean }
-    const [ticketTiers, setTicketTiers] = useState([]); // [{ id: string (from DB or new), tierName: '', price: '', quantity: '', _originalId?: number (for existing tiers) }]
+    const [images, setImages] = useState([]);
+    const [ticketTiers, setTicketTiers] = useState([]); 
 
     const [venues, setVenues] = useState([]);
     const [selectedVenue, setSelectedVenue] = useState(null);
@@ -76,7 +72,7 @@ const EditEventForm = ({ eventToEdit, onClose, onEventSaved }) => {
             setImages(
                 eventToEdit.images?.map(img => ({
                     id: img.image_id, // Use DB image_id as key
-                    url: `${SERVER_BASE_URL}${img.url}`,
+                    url: img.url,
                     name: img.caption || 'event_image',
                     isNew: false,
                     markedForDeletion: false,
@@ -105,7 +101,7 @@ const EditEventForm = ({ eventToEdit, onClose, onEventSaved }) => {
     useEffect(() => { // Fetch venues for the dropdown
         const fetchVenues = async () => {
             try {
-                const response = await apiClient.get("/venues/venues");
+                const response = await apiClient.get("/venue/venues");
                 setVenues(response.data || []);
             } catch (error) {
                 console.error("Error fetching venues for edit form:", error);

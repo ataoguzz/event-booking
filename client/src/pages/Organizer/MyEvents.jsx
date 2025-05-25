@@ -22,8 +22,6 @@ import { format, parseISO } from 'date-fns';
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import {EditEventForm} from "@/pages/Organizer/EditEventForm.jsx";
 
-const SERVER_BASE_URL ='http://localhost:3001';
-
 const mapCategoryToType = (category) => {
   const mapping = {
     'CONCERT': 'Concert',
@@ -83,7 +81,7 @@ export default function MyEvents() {
         capacity: event.venue_capacity || 0,
         soldTickets: event.tickets_sold || 0,
         status: event.status ? event.status.toLowerCase() : 'unknown',
-        image: event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : 'https://via.placeholder.com/300x200?text=No+Image',
+        image: event.hero_image_url || 'https://via.placeholder.com/300x200?text=No+Image',
         _original: event
       }));
       setAllFetchedEvents(transformedEvents);
@@ -398,7 +396,7 @@ export default function MyEvents() {
 function EventDetailsDialog({ event, isOpen, onClose }) {
   if (!event) return null;
 
-  const heroImage = event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : (event.images && event.images.length > 0 ? `${SERVER_BASE_URL}${event.images[0].url}` : "https://via.placeholder.com/800x400?text=Event+Image");
+  const heroImage = event.hero_image_url || (event.images && event.images.length > 0 ? event.images[0].url : "https://via.placeholder.com/800x400?text=Event+Image");
 
   return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -448,12 +446,12 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
               ) : (<p className="text-sm text-muted-foreground">No specific ticket tiers defined.</p>)}
             </div>
 
-            {event.images && event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage.replace(SERVER_BASE_URL,'')).length > 0 && (
+            {event.images && event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage).length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-2">More Images</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage.replace(SERVER_BASE_URL,'')).map(image => (
-                        <img key={image.image_id} src={`${SERVER_BASE_URL}${image.url}`} alt={image.caption || event.title} className="rounded-md object-cover aspect-square" />
+                    {event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage).map(image => (
+                        <img key={image.image_id} src={image.url} alt={image.caption || event.title} className="rounded-md object-cover aspect-square" />
                     ))}
                   </div>
                 </div>

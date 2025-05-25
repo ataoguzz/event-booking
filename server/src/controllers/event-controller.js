@@ -1,6 +1,23 @@
-/* controllers/events.js */
 import { query, getClient } from '../utils/db.js';
 import { calculateDiscount, applyPromoCode } from './promo-controller.js';
+import path from "path";
+import fs from "fs";
+
+// Helper function to handle both local and external image URLs
+const getImageUrl = (imageUrl, fallback = null) => {
+  if (!imageUrl) return fallback;
+  // If it's already a full URL (starts with http/https), return as is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+  // If it's a local path (starts with /), prepend server URL
+  const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:3001';
+  if (imageUrl.startsWith('/')) {
+    return `${SERVER_BASE_URL}${imageUrl}`;
+  }
+  // Otherwise, assume it's a local path and prepend server URL
+  return `${SERVER_BASE_URL}/${imageUrl}`;
+};
 
 const toInt = (v, defVal) => {
   const n = parseInt(v, 10);
@@ -121,7 +138,8 @@ export const getEvents = async (req, res) => {
         const events = rows.map(event => ({
             ...event,
             base_price: parseFloat(event.base_price),
-            price_from: parseFloat(event.price_from)
+            price_from: parseFloat(event.price_from),
+            cover_url: getImageUrl(event.cover_url)
         }));
 
         console.log(queryParams);
@@ -238,15 +256,15 @@ export const getEventDetails = async (req, res) => {
             start_at: event.start_at,
             end_at: event.end_at,
             status: event.status,
-            hero_image_url: event.hero_image_url,
+            hero_image_url: getImageUrl(event.hero_image_url),
             images: imagesRows.map(img => ({
-                url: img.url,
+                url: getImageUrl(img.url),
                 caption: img.caption
             })),
             organizer: {
                 account_id: event.organizer_account_id,
                 display_name: event.organizer_display_name,
-                avatar_url: event.organizer_avatar_url,
+                avatar_url: getImageUrl(event.organizer_avatar_url),
                 rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
             },
             venue: {
@@ -780,9 +798,7 @@ export const purchaseTickets = async (req, res) => {
     }
 };
 
-import { getClient } from "../utils/db.js";
-import path from "path";
-import fs from "fs";
+
 
 const mapEventTypeToCategory = (eventType) => {
     const mapping = {
@@ -1008,8 +1024,6 @@ export const updateEvent = async (req, res, next) => {
     if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venueIdStr || !ticketTiersDataString) {
         return res.status(400).json({ message: "Missing required fields for update." });
     }
-    let ticketTiers; try { ticketTiers = JSON.parse(ticketTiersDataString); /* + validation */ } catch (e) { /* error */ }
-    let startAtIso, endAtIso;
     try {
         startAtIso = new Date(`${startDate}T${startTime}`).toISOString();
         endAtIso = new Date(`${endDate}T${endTime}`).toISOString();
@@ -1028,7 +1042,7 @@ export const updateEvent = async (req, res, next) => {
     const basePriceForEvent = ticketTiers.length > 0 && ticketTiers[0].price !== undefined ? parseFloat(ticketTiers[0].price) : 0;
 
     const client = await getClient();
-    try {
+ /* error */    try {
         await client.query('BEGIN');
 
         const eventCheckQuery = 'SELECT organizer_account_id, hero_image_url FROM events WHERE event_id = $1';
@@ -1215,10 +1229,6 @@ export const getEventDetailsById = async (req, res, next) => {
         const tiersQuery = 'SELECT tier_id, tier_name, price, quantity, description FROM event_ticket_tiers WHERE event_id = $1 ORDER BY price ASC, tier_name ASC';
         const tiersResult = await client.query(tiersQuery, [parsedEventId]);
         eventDetails.ticket_tiers = tiersResult.rows;
-
-        // You could also fetch how many tickets are sold per tier if needed for display:
-        // SELECT tier_id, COUNT(*) as sold_count FROM tickets WHERE event_id = $1 AND status = 'CONFIRMED' GROUP BY tier_id;
-        // And then merge this with eventDetails.ticket_tiers.
 
         res.status(200).json(eventDetails);
 

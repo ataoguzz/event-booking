@@ -1,5 +1,5 @@
 // src/pages/EventDetailsPage.jsx (Simplified Example)
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import apiClient from '@/helpers/apiCore';
 import Layout from '@/components/Layout';
@@ -7,10 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Calendar, Clock, MapPin, Users, Tag, DollarSign, Image as ImageIcon, ChevronLeft } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
-const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 const mapCategoryToType = (category) => { /* ... same as in MyEvents ... */ };
-
 
 export default function EventDetailsPage() {
     const { eventId } = useParams();
@@ -46,7 +45,7 @@ export default function EventDetailsPage() {
         return <Layout><div className="text-center py-10">Event not found.</div></Layout>;
     }
 
-    const heroImage = event.hero_image_url ? `${SERVER_BASE_URL}${event.hero_image_url}` : (event.images && event.images.length > 0 ? `${SERVER_BASE_URL}${event.images[0].url}` : "https://via.placeholder.com/800x400?text=Event+Image");
+    const heroImage = event.hero_image_url ? event.hero_image_url : (event.images && event.images.length > 0 ? event.images[0].url : "https://via.placeholder.com/800x400?text=Event+Image");
 
     return (
         <Layout>
@@ -109,8 +108,8 @@ export default function EventDetailsPage() {
                             <>
                                 <h2 className="text-2xl font-semibold mt-8 mb-3">More Images</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage.replace(SERVER_BASE_URL, '')).map(image => (
-                                        <img key={image.image_id} src={`${SERVER_BASE_URL}${image.url}`} alt={image.caption || event.title} className="rounded-lg object-cover aspect-square" />
+                                    {event.images.filter(img => img.url !== event.hero_image_url && img.url !== heroImage).map(image => (
+                                        <img key={image.image_id} src={image.url} alt={image.caption || event.title} className="rounded-lg object-cover aspect-square" />
                                     ))}
                                 </div>
                             </>

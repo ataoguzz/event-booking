@@ -187,34 +187,23 @@ CREATE TABLE event_ticket_tiers (
     UNIQUE (event_id, tier_name)
 );
 
-CREATE INDEX idx_event_ticket_tiers_event_id ON event_ticket_tiers(event_id);
-
 
 CREATE TABLE tickets (
-    ticket_id BIGSERIAL PRIMARY KEY,
-    tx_id BIGINT NOT NULL,
-    event_id BIGINT NOT NULL,
-    seat_id BIGINT NOT NULL,
-    guest_full_name VARCHAR(100),
-    guest_email VARCHAR(255) NULL,
-    qr_token UUID DEFAULT gen_random_uuid() UNIQUE,
-    pdf_url TEXT,
-    status ticket_status_enum DEFAULT 'AVAILABLE',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (event_id, seat_id),
-    CONSTRAINT fk_transaction
-        FOREIGN KEY(tx_id)
-        REFERENCES transactions(tx_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_event
-        FOREIGN KEY(event_id)
-        REFERENCES events(event_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_seat
-        FOREIGN KEY(seat_id)
-        REFERENCES seats(seat_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE
+    ticket_id            BIGSERIAL PRIMARY KEY,
+    event_id             BIGINT  NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    tier_id              BIGINT  NULL     REFERENCES event_ticket_tiers(tier_id) ON DELETE SET NULL,
+    seat_id              BIGINT  NULL     REFERENCES seats(seat_id)   ON DELETE RESTRICT,
+    tx_id                BIGINT  NULL     REFERENCES transactions(tx_id),
+    attendee_account_id  BIGINT  NULL     REFERENCES attendees(account_id) ON DELETE SET NULL,
+    price_at_purchase    NUMERIC(10,2),
+    guest_full_name      VARCHAR(100),
+    guest_email          VARCHAR(255),
+    qr_token             UUID DEFAULT gen_random_uuid() UNIQUE,
+    pdf_url              TEXT,
+    status               ticket_status_enum DEFAULT 'AVAILABLE',
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (event_id, seat_id)
 );
 
 CREATE TABLE promo_codes (
@@ -322,7 +311,7 @@ SELECT
     o.account_id AS organizer_account_id,
     o.display_name AS organizer_name,
     o.avatar_url AS organizer_avatar_url,
-    o.avg_rating AS organizer_rating,
+    o.avg_rating AS organizer_rating
 FROM follows f
 JOIN organizers o ON o.account_id = f.organizer_account_id
 JOIN events e ON e.organizer_account_id = o.account_id
@@ -339,6 +328,5 @@ CREATE INDEX idx_tickets_tx_id ON tickets(tx_id);
 CREATE INDEX idx_transactions_attendee_account_id_created_at ON transactions(attendee_account_id, created_at DESC);
 CREATE INDEX idx_promo_codes_code ON promo_codes(code);
 CREATE INDEX idx_tickets_event_status ON tickets(event_id, status);
-CREATE INDEX idx_tickets_event_tier   ON tickets(event_id, tier_id);
 CREATE INDEX idx_event_ticket_tiers_event_id ON event_ticket_tiers(event_id);
 CREATE UNIQUE INDEX idx_tickets_unique_assigned_seat ON tickets (event_id, seat_id) WHERE seat_id IS NOT NULL;

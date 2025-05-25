@@ -1,4 +1,3 @@
-// server/routers/event-router.js
 import express from "express";
 import {getEvents, getEventDetails, getEventSeats, purchaseTickets, createEvent, getOrganizerEvents, updateEvent, deleteEvent, getEventDetailsById} from "../controllers/event-controller.js";
 import { uploadEventImages } from "../middleware/uploadMiddleware.js";

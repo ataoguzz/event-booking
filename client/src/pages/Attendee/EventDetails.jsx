@@ -45,11 +45,10 @@ const EventDetails = () => {
     const fetchEventDetails = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get(`/event/${eventId}`);
+        const response = await apiClient.get(`/event/${eventId}/details`);
         setEvent(response.data);
         setError(null);
-        
-        // Reset image states when new event is loaded
+      
         setCurrentImageIndex(0);
         setImageLoadingStates({});
         setImageErrors({});
@@ -252,8 +251,8 @@ const EventDetails = () => {
                       ) : (
                         <img 
                           key={`image-${currentImageIndex}`}
-                          src={event.images[currentImageIndex]?.url} 
-                          alt={event.images[currentImageIndex]?.caption || `Event image ${currentImageIndex + 1}`} 
+                          src={event.images[currentImageIndex].url} 
+                          alt={event.images[currentImageIndex].caption || `Event image ${currentImageIndex + 1}`} 
                           className="w-full h-full object-cover"
                           onLoad={() => setImageLoadingStates(prev => ({ ...prev, [currentImageIndex]: false }))}
                           onError={() => {

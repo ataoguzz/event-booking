@@ -13,6 +13,7 @@ import {eventRouter} from "./routers/event-router.js";
 import {venueRouter} from "./routers/venue-router.js";
 import {ticketRouter} from "./routers/ticket-router.js";
 import promoRouter from "./routers/promo-router.js";
+import {testRouter} from "./routers/test-router.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -34,6 +35,7 @@ app.use("/api/event", eventRouter);
 app.use("/api/venue", venueRouter);
 app.use("/api/tickets", ticketRouter);
 app.use("/api/promo", promoRouter);
+app.use("/api/test", testRouter);
 
 app.use('/uploads', express.static(path.join(__dirnameCurrent, '..', 'uploads')));
 

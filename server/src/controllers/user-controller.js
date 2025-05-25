@@ -392,8 +392,7 @@ export const getFollowedEvents = async (req, res) => {
                 organizer_account_id,
                 organizer_name,
                 organizer_avatar_url,
-                organizer_rating,
-                follow_date
+                organizer_rating
             FROM followed_organizer_events
             WHERE follower_account_id = $1
             ORDER BY start_at ASC
@@ -428,8 +427,6 @@ export const getFollowedEvents = async (req, res) => {
                 avatar_url: event.organizer_avatar_url,
                 rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
             },
-            follow_date: event.follow_date,
-            // Calculate time until event
             time_until_event: new Date(event.start_at) - new Date()
         }));
 

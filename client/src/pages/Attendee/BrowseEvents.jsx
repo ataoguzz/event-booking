@@ -28,7 +28,6 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar as UICalendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
-
 export default function BrowseEvents() {
   const [events, setEvents] = useState([]);
   const [cities, setCities] = useState([]);
@@ -89,7 +88,18 @@ export default function BrowseEvents() {
     loadEvents();
   }, [loadEvents]);
 
-  const eventTypes = Array.from(new Set(events.map(e => e.category))).filter(Boolean);
+  const eventTypes = ["CONCERT", "THEATER", "SPORTS", "STANDUP", "CONFERENCE", "WORKSHOP", "FESTIVAL", "OTHER"];
+
+  const eventTypeLabels = {
+    "CONCERT": "CONCERT",
+    "THEATER": "THEATER",
+    "SPORTS": "SPORTS",
+    "STANDUP": "STANDUP",
+    "CONFERENCE": "CONFERENCE",
+    "WORKSHOP": "WORKSHOP",
+    "FESTIVAL": "FESTIVAL",
+    "OTHER": "OTHER"
+  };
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -158,6 +168,7 @@ export default function BrowseEvents() {
               setLocationFilter(value);
             }}
             eventTypes={eventTypes}
+            eventTypeLabels={eventTypeLabels}
             cities={cities}
             clearAll={clearAllFilters}
           />
@@ -216,7 +227,7 @@ function FiltersSidebar(props) {
     startDate, setStartDate, endDate, setEndDate,
     categoryFilter, setCategoryFilter,
     locationFilter, setLocationFilter,
-    eventTypes, cities,
+    eventTypes, eventTypeLabels, cities,
     clearAll 
   } = props;
 
@@ -247,7 +258,7 @@ function FiltersSidebar(props) {
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {eventTypes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {eventTypes.map(c => <SelectItem key={c} value={c}>{eventTypeLabels[c]}</SelectItem>)}
               </SelectContent>
             </Select>
           </FilterGroup>
@@ -293,8 +304,9 @@ function EventCard({ ev }) {
   return (
     <Card className="overflow-hidden">
       <div className="relative h-48">
-        <img src={ev.cover_url || 'https://via.placeholder.com/400x200?text=Event+Image'} alt={ev.title} className="w-full h-full object-cover" />
+        <img src={ev.cover_url} alt={ev.title} className="w-full h-full object-cover" />
         <Badge className="absolute top-3 right-3 bg-black text-white">${price}</Badge>
+        <Badge className="absolute top-3 left-3 bg-blue-600 text-white">{ev.category}</Badge>
       </div>
       <CardHeader>
         <CardTitle className="text-xl">{ev.title}</CardTitle>
