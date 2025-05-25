@@ -820,7 +820,8 @@ export const createEvent = async (req, res, next) => {
         title, description, eventType,
         startDate, startTime, endDate, endTime,
         venue, rules, organizerAccountId,
-        ticketTiersData: ticketTiersDataString
+        ticketTiersData: ticketTiersDataString,
+        promoCodes: promoCodesString
     } = req.body;
 
     if (!organizerAccountId) {
@@ -856,6 +857,45 @@ export const createEvent = async (req, res, next) => {
         }
     } catch (e) {
         return res.status(400).json({ message: `Invalid ticket tiers data: ${e.message}` });
+    }
+
+    // Parse and validate promo codes
+    let promoCodes = [];
+    if (promoCodesString) {
+        try {
+            promoCodes = JSON.parse(promoCodesString);
+            if (!Array.isArray(promoCodes)) {
+                throw new Error("Promo codes data must be an array.");
+            }
+            for (const promo of promoCodes) {
+                if (!promo.code || typeof promo.code !== 'string' || promo.code.trim() === "") {
+                    throw new Error("Invalid promo code.");
+                }
+                if (!promo.discountType || !['PERCENT', 'FIXED'].includes(promo.discountType)) {
+                    throw new Error(`Invalid discount type for promo code ${promo.code}.`);
+                }
+                if (isNaN(parseFloat(promo.discountValue)) || parseFloat(promo.discountValue) <= 0) {
+                    throw new Error(`Invalid discount value for promo code ${promo.code}.`);
+                }
+                if (promo.discountType === 'PERCENT' && parseFloat(promo.discountValue) > 100) {
+                    throw new Error(`Percentage discount cannot exceed 100% for promo code ${promo.code}.`);
+                }
+                if (promo.usageLimit && (isNaN(parseInt(promo.usageLimit)) || parseInt(promo.usageLimit) <= 0)) {
+                    throw new Error(`Invalid usage limit for promo code ${promo.code}.`);
+                }
+                if (promo.startDate && isNaN(new Date(promo.startDate).getTime())) {
+                    throw new Error(`Invalid start date for promo code ${promo.code}.`);
+                }
+                if (promo.endDate && isNaN(new Date(promo.endDate).getTime())) {
+                    throw new Error(`Invalid end date for promo code ${promo.code}.`);
+                }
+                if (promo.startDate && promo.endDate && new Date(promo.endDate) < new Date(promo.startDate)) {
+                    throw new Error(`End date must be after start date for promo code ${promo.code}.`);
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: `Invalid promo codes data: ${e.message}` });
+        }
     }
 
     let startAtIso, endAtIso;
@@ -911,6 +951,30 @@ export const createEvent = async (req, res, next) => {
 
         const eventResult = await client.query(eventInsertQuery, eventInsertValues);
         const newEventId = eventResult.rows[0].event_id;
+
+        // Insert promo codes
+        if (promoCodes.length > 0) {
+            const promoInsertQuery = `
+                INSERT INTO promo_codes (
+                    event_id, code, discount_type, discount_value,
+                    usage_limit, start_date, end_date, is_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING promo_code_id
+            `;
+
+            for (const promo of promoCodes) {
+                await client.query(promoInsertQuery, [
+                    newEventId,
+                    promo.code.toUpperCase(),
+                    promo.discountType,
+                    parseFloat(promo.discountValue),
+                    promo.usageLimit ? parseInt(promo.usageLimit) : null,
+                    promo.startDate ? new Date(promo.startDate).toISOString().split('T')[0] : null,
+                    promo.endDate ? new Date(promo.endDate).toISOString().split('T')[0] : null,
+                    true
+                ]);
+            }
+        }
 
         const imageInsertPromises = req.files.map(file => {
             const imageUrl = `/uploads/${file.filename}`;
@@ -978,6 +1042,8 @@ export const createEvent = async (req, res, next) => {
             next({ status: 409, message: "An event with this title and start time already exists."});
         } else if (error.constraint === 'event_ticket_tiers_event_id_tier_name_key') {
             next({ status: 409, message: "Duplicate tier name for this event."});
+        } else if (error.constraint === 'promo_codes_code_key') {
+            next({ status: 409, message: "A promo code with this code already exists."});
         } else {
             next(error);
         }

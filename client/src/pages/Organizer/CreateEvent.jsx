@@ -22,7 +22,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
-import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Loader2 } from "lucide-react";
+import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Loader2, Tag } from "lucide-react";
 import { cn } from "@/lib/utils.js";
 import { format } from "date-fns";
 // import { v4 as uuidv4 } from 'uuid'; // REMOVE THIS LINE
@@ -49,6 +49,9 @@ const CreateEvent = () => {
         rules: "",
         images: [],
     });
+
+    // Add promo codes state
+    const [promoCodes, setPromoCodes] = useState([]);
 
     // Use useRef for a persistent, incrementing ID that doesn't cause re-renders
     const nextTierId = useRef(1);
@@ -229,6 +232,27 @@ const CreateEvent = () => {
         }));
     };
 
+    // Add promo code handling functions
+    const addPromoCode = () => {
+        setPromoCodes(prev => [...prev, {
+            code: '',
+            discountType: 'PERCENT',
+            discountValue: '',
+            usageLimit: '',
+            startDate: null,
+            endDate: null
+        }]);
+    };
+
+    const removePromoCode = (index) => {
+        setPromoCodes(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const updatePromoCode = (index, field, value) => {
+        setPromoCodes(prev => prev.map((promo, i) => 
+            i === index ? { ...promo, [field]: value } : promo
+        ));
+    };
 
     const validateForm = () => {
         const newErrors = {};
@@ -416,6 +440,11 @@ const CreateEvent = () => {
 
         // Exclude temporary client-side 'id' from each tier object
         data.append('ticketTiersData', JSON.stringify(ticketTiers.map(({ id, ...rest }) => rest)));
+
+        // Add promo codes
+        if (promoCodes.length > 0) {
+            data.append('promoCodes', JSON.stringify(promoCodes));
+        }
 
         // Add seat assignments for seated venues
         if (selectedVenue && selectedVenue.isSeated && Object.keys(seatAssignments).length > 0) {
@@ -890,6 +919,134 @@ const CreateEvent = () => {
                                     rows={3} 
                                 />
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Promo Codes Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Tag className="h-5 w-5" />
+                                Promo Codes
+                            </CardTitle>
+                            <CardDescription>Create promotional codes for your event</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {promoCodes.map((promo, index) => (
+                                <div key={index} className="p-4 border rounded-lg space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="font-medium">Promo Code {index + 1}</h4>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => removePromoCode(index)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Code *</Label>
+                                            <Input
+                                                placeholder="Enter promo code"
+                                                value={promo.code}
+                                                onChange={(e) => updatePromoCode(index, 'code', e.target.value.toUpperCase())}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Discount Type *</Label>
+                                            <Select
+                                                value={promo.discountType}
+                                                onValueChange={(value) => updatePromoCode(index, 'discountType', value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select discount type" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="PERCENT">Percentage</SelectItem>
+                                                    <SelectItem value="FIXED">Fixed Amount</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Discount Value *</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder={promo.discountType === 'PERCENT' ? "Enter percentage" : "Enter amount"}
+                                                value={promo.discountValue}
+                                                onChange={(e) => updatePromoCode(index, 'discountValue', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Usage Limit</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="Enter usage limit (optional)"
+                                                value={promo.usageLimit}
+                                                onChange={(e) => updatePromoCode(index, 'usageLimit', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Start Date</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "w-full justify-start text-left font-normal",
+                                                            !promo.startDate && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {promo.startDate ? format(promo.startDate, "PPP") : "Pick a date"}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={promo.startDate}
+                                                        onSelect={(date) => updatePromoCode(index, 'startDate', date)}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>End Date</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "w-full justify-start text-left font-normal",
+                                                            !promo.endDate && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {promo.endDate ? format(promo.endDate, "PPP") : "Pick a date"}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={promo.endDate}
+                                                        onSelect={(date) => updatePromoCode(index, 'endDate', date)}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={addPromoCode}
+                                className="w-full"
+                            >
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Promo Code
+                            </Button>
                         </CardContent>
                     </Card>
 
