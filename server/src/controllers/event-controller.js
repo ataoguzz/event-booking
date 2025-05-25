@@ -160,8 +160,6 @@ export const getEventDetails = async (req, res) => {
                 e.base_price,
                 e.hero_image_url,
                 e.tickets_sold,
-                e.created_at,
-                e.updated_at,
                 o.account_id AS organizer_account_id,
                 o.display_name AS organizer_display_name,
                 o.avatar_url AS organizer_avatar_url,

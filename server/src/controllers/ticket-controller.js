@@ -17,12 +17,10 @@ export const getUserTickets = async (req, res) => {
                 t.created_at,
                 e.event_id,
                 e.title AS event_name,
-                e.description AS event_description,
                 e.start_at,
                 e.end_at,
                 e.hero_image_url,
                 v.name AS venue_name,
-                v.address AS venue_address,
                 v.city AS venue_city,
                 ett.tier_name,
                 s.section,
@@ -54,7 +52,6 @@ export const getUserTickets = async (req, res) => {
                 qr_token: ticket.qr_token,
                 eventId: ticket.event_id,
                 eventName: ticket.event_name,
-                eventDescription: ticket.event_description,
                 date: ticket.start_at.toISOString().split('T')[0],
                 time: ticket.start_at.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
@@ -67,7 +64,6 @@ export const getUserTickets = async (req, res) => {
                     hour12: false 
                 }) : null,
                 venue: ticket.venue_name,
-                venueAddress: ticket.venue_address,
                 location: ticket.venue_city,
                 seat: seatInfo,
                 tierName: ticket.tier_name,

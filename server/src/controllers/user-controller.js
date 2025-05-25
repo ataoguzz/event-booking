@@ -380,7 +380,6 @@ export const getFollowedEvents = async (req, res) => {
             SELECT 
                 event_id,
                 title,
-                description,
                 category,
                 start_at,
                 end_at,
@@ -414,7 +413,6 @@ export const getFollowedEvents = async (req, res) => {
         const formattedEvents = events.map(event => ({
             event_id: event.event_id,
             title: event.title,
-            description: event.description,
             category: event.category,
             start_at: event.start_at,
             end_at: event.end_at,
