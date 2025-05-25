@@ -162,7 +162,7 @@ export default function OrganizerProfile() {
                 className="whitespace-nowrap"
                 onClick={handleFollowToggle}
                 disabled={isFollowingLoading}
-                variant={isFollowing ? "default" : "secondary"}
+                variant={!isFollowing ? "default" : "secondary"}
               >
                 {isFollowing ? (
                   <>

@@ -214,6 +214,19 @@ export const getPublicOrganizerProfile = async (req, res, next) => {
 
         console.log(`[INFO] Fetching public organizer profile for ID: ${organizerId}`);
         
+        // If user is authenticated, pass their accountId to check if they're following
+        const viewerAccountId = req.user?.accountId || null;
+        console.log(`[INFO] Viewer account ID: ${viewerAccountId}`);
+        
+        if (viewerAccountId) {
+            // Double-check if the viewer is following the organizer directly
+            const followCheck = await query(
+                'SELECT 1 FROM follows WHERE follower_account_id = $1 AND organizer_account_id = $2',
+                [viewerAccountId, organizerId]
+            );
+            console.log(`[INFO] Direct follow check: ${followCheck.rows.length > 0 ? 'Following' : 'Not following'}`);
+        }
+        
         // Get organizer profile data, excluding private information like email
         const profileQuery = `
             SELECT 
@@ -251,15 +264,14 @@ export const getPublicOrganizerProfile = async (req, res, next) => {
             FROM organizers o
             WHERE o.account_id = $1`;
         
-        // If user is authenticated, pass their accountId to check if they're following
-        const viewerAccountId = req.user?.accountId || null;
-        
         const result = await query(profileQuery, [organizerId, viewerAccountId]);
         
         if (result.rows.length === 0) {
             console.log(`[INFO] No organizer found with ID: ${organizerId}`);
             return res.status(404).json({ message: 'Organizer profile not found.' });
         }
+        
+        console.log(`[INFO] SQL Query is_following result: ${result.rows[0].is_following}`);
         
         // Get recent events for this organizer
         const eventsQuery = `
@@ -291,7 +303,7 @@ export const getPublicOrganizerProfile = async (req, res, next) => {
             recent_events: eventsResult.rows || []
         };
         
-        console.log(`[INFO] Successfully retrieved organizer profile for ID: ${organizerId}`);
+        console.log(`[INFO] Successfully retrieved organizer profile for ID: ${organizerId}, is_following: ${response.is_following}`);
         res.status(200).json(response);
         
     } catch (error) {

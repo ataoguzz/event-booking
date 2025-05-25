@@ -62,7 +62,7 @@ const getProfile = async () => {
 const getPublicProfile = async (organizerId) => {
   try {
     console.log(`[OrganizerService] Fetching public profile for organizer ID: ${organizerId}`);
-    const endpoint = `/organizer/organizer/${organizerId}`;
+    const endpoint = `/organizer/${organizerId}`;
     console.log(`[OrganizerService] Making API request to: ${endpoint}`);
     
     const response = await apiClient.get(endpoint);

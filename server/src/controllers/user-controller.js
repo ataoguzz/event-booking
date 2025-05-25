@@ -101,11 +101,11 @@ export const getOrganizers = async (req, res) => {
 export const getFollowing = async (req, res) => {
     try {
         const q = `
-          SELECT organizer_account_id AS id$
+          SELECT organizer_account_id AS id
           FROM   follows
           WHERE  follower_account_id = $1
         `;
-        const { rows } = await query(q, [req.user.id]);
+        const { rows } = await query(q, [req.user.accountId]);
         res.json(rows.map(r => r.id));
     } catch (err) { 
         console.error("Error in getFollowing:", err);
@@ -122,20 +122,51 @@ export const followOrganizer = async (req, res) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
+      
+      // Check if organizer exists
+      const organizerCheck = await client.query(
+        'SELECT account_id FROM organizers WHERE account_id = $1',
+        [orgId]
+      );
+      
+      if (organizerCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Organizer not found' });
+      }
+      
+      // Check if current user is an attendee
+      const attendeeCheck = await client.query(
+        'SELECT account_id FROM attendees WHERE account_id = $1',
+        [req.user.accountId]
+      );
+      
+      if (attendeeCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Only attendees can follow organizers' });
+      }
   
       const insertResult = await client.query(
         `INSERT INTO follows (follower_account_id, organizer_account_id)
          VALUES ($1, $2)
          ON CONFLICT (follower_account_id, organizer_account_id) DO NOTHING`,
-        [req.user.id, orgId]
+        [req.user.accountId, orgId]
       );
   
       if (insertResult.rowCount > 0) {
+        // Update organizer's followers count
         await client.query(
           `UPDATE organizers
              SET followers_count = followers_count + 1
            WHERE account_id = $1`,
           [orgId]
+        );
+        
+        // Update attendee's following count
+        await client.query(
+          `UPDATE attendees
+             SET following_count = following_count + 1
+           WHERE account_id = $1`,
+          [req.user.accountId]
         );
       }
   
@@ -151,7 +182,7 @@ export const followOrganizer = async (req, res) => {
 };
   
 
-  export const unfollowOrganizer = async (req, res) => {
+export const unfollowOrganizer = async (req, res) => {
     const orgId = parseInt(req.params.id, 10);
     if (isNaN(orgId) || orgId <= 0) {
       return res.status(400).json({ error: 'Invalid organizer id' });
@@ -160,20 +191,51 @@ export const followOrganizer = async (req, res) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
+      
+      // Check if organizer exists
+      const organizerCheck = await client.query(
+        'SELECT account_id FROM organizers WHERE account_id = $1',
+        [orgId]
+      );
+      
+      if (organizerCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Organizer not found' });
+      }
+      
+      // Check if current user is an attendee
+      const attendeeCheck = await client.query(
+        'SELECT account_id FROM attendees WHERE account_id = $1',
+        [req.user.accountId]
+      );
+      
+      if (attendeeCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Only attendees can unfollow organizers' });
+      }
   
       const { rowCount } = await client.query(
         `DELETE FROM follows
          WHERE follower_account_id   = $1
            AND organizer_account_id = $2`,
-        [req.user.id, orgId]
+        [req.user.accountId, orgId]
       );
   
       if (rowCount) {
+        // Update organizer's followers count
         await client.query(
           `UPDATE organizers
              SET followers_count = GREATEST(followers_count - 1, 0)
            WHERE account_id = $1`,
           [orgId]
+        );
+        
+        // Update attendee's following count
+        await client.query(
+          `UPDATE attendees
+             SET following_count = GREATEST(following_count - 1, 0)
+           WHERE account_id = $1`,
+          [req.user.accountId]
         );
       }
   
