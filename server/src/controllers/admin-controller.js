@@ -337,10 +337,10 @@ export const getDashboardData = async (req, res, next) => {
         const firstDayOfNextMonth = new Date(firstDayOfMonth.getFullYear(), firstDayOfMonth.getMonth() + 1, 1);
 
         const revenueQuery = `
-            SELECT COALESCE(SUM(tn.amount), 0) AS revenue
+            SELECT COALESCE(-SUM(tn.amount), 0) AS revenue
             FROM transactions tn
             JOIN tickets tk ON tn.tx_id = tk.tx_id
-            WHERE tk.status IN ('CONFIRMED', 'USED')
+            WHERE tk.status IN ('PURCHASED')
             AND tn.created_at >= $1
             AND tn.created_at < $2
         `;
@@ -362,18 +362,16 @@ export const getDashboardData = async (req, res, next) => {
         }
         const summaryQueries = {
             totalRevenue: `
-              SELECT COALESCE(SUM(tn.amount), 0) AS total
+              SELECT COALESCE(-SUM(tn.amount), 0) AS total
               FROM transactions tn
-              JOIN tickets tk ON tn.tx_id = tk.tx_id
-              WHERE tk.status IN ('CONFIRMED', 'USED')
+              WHERE tn.tx_type IN ('TICKET_PURCHASE')
               AND tn.created_at >= $1
               AND tn.created_at < $2
             `,
             previousRevenue: `
-              SELECT COALESCE(SUM(tn.amount), 0) AS total
+              SELECT COALESCE(-SUM(tn.amount), 0) AS total
               FROM transactions tn
-              JOIN tickets tk ON tn.tx_id = tk.tx_id
-              WHERE tk.status IN ('CONFIRMED', 'USED')
+              WHERE tn.tx_type IN ('TICKET_PURCHASE')
               ${prevStartDate ? "AND tn.created_at >= $1 AND tn.created_at < $2" : ""}
             `,
             totalEvents: `
@@ -403,8 +401,7 @@ export const getDashboardData = async (req, res, next) => {
             ticketsSold: `
               SELECT COALESCE( COUNT(*), 0) AS total
               FROM transactions tn
-              JOIN tickets tk ON tn.tx_id = tk.tx_id
-              WHERE tk.status IN ('CONFIRMED', 'USED')
+              WHERE tn.tx_type IN ('TICKET_PURCHASE')
               AND tn.created_at >= $1
               AND tn.created_at < $2
             `,
@@ -412,7 +409,7 @@ export const getDashboardData = async (req, res, next) => {
               SELECT COALESCE( COUNT(*), 0) AS total
               FROM transactions tn
               JOIN tickets tk ON tn.tx_id = tk.tx_id
-              WHERE tk.status IN ('CONFIRMED', 'USED')
+              WHERE tk.status IN ('PURCHASED')
               ${prevStartDate ? "AND tn.created_at >= $1 AND tn.created_at < $2" : ""}
             `,
           };
