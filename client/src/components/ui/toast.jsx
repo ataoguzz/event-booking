@@ -2,42 +2,10 @@ import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
-export const ToastContext = React.createContext({
-    toast: () => {},
-    toasts: []
-});
-
-const ToastProvider = ({ children }) => {
-    const [toasts, setToasts] = React.useState([]);
-
-    const toast = React.useCallback(({ title, description, variant = "default" }) => {
-        const id = Math.random().toString(36).substr(2, 9);
-        setToasts((prevToasts) => [...prevToasts, { id, title, description, variant }]);
-        
-        // Auto dismiss after 5 seconds
-        setTimeout(() => {
-            setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
-        }, 5000);
-    }, []);
-
-    return (
-        <ToastContext.Provider value={{ toast, toasts }}>
-            <ToastPrimitives.Provider swipeDirection="right">
-                {children}
-                {toasts.map(({ id, title, description, variant }) => (
-                    <Toast key={id} variant={variant}>
-                        {title && <ToastTitle>{title}</ToastTitle>}
-                        {description && <ToastDescription>{description}</ToastDescription>}
-                        <ToastClose />
-                    </Toast>
-                ))}
-                <ToastViewport />
-            </ToastPrimitives.Provider>
-        </ToastContext.Provider>
-    );
-};
+const ToastProvider = ToastPrimitives.Provider
 
 const ToastViewport = React.forwardRef(({ className, ...props }, ref) => (
     <ToastPrimitives.Viewport

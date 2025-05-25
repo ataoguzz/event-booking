@@ -47,9 +47,8 @@ export default function LoginForm() {
     }
 
     return (
-        <div className="w-screen h-screen bg-auto bg-center">
-        <div className="flex justify-center items-center min-h-[70vh]">
-            <Card className="w-full max-w-md">
+        <div className="w-full max-w-md">
+            <Card>
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
                 </CardHeader>
@@ -111,7 +110,6 @@ export default function LoginForm() {
                     </form>
                 </CardContent>
             </Card>
-        </div>
         </div>
     )
 }

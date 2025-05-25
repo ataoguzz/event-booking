@@ -1,175 +1,196 @@
-import { query, getClient } from "../utils/db.js";
+import { getClient } from "../utils/db.js";
 
-export const searchEvents = async (req, res, next) => {
+const mapEventTypeToCategory = (eventType) => {
+    const mapping = {
+        "Concert": 'CONCERT',
+        "Theater": 'THEATER',
+        "Stand-up Comedy": 'STANDUP',
+        "Conference": 'CONFERENCE',
+        "Workshop": 'WORKSHOP',
+        "Festival": 'FESTIVAL',
+        "Sports Event": 'SPORTS',
+        "Exhibition": 'OTHER',
+        "Dance Performance": 'OTHER',
+    };
+    return mapping[eventType] || 'OTHER';
+};
+
+export const createEvent = async (req, res, next) => {
+
     const {
-        location,
-        startDate,
-        endDate,
-        category,
-        minPrice,
-        maxPrice,
-        sortBy = 'date_asc'
-    } = req.query;
+        title, description, eventType,
+        startDate, startTime, endDate, endTime,
+        venue, rules, organizerAccountId,
+        ticketTiersData: ticketTiersDataString
+    } = req.body;
 
+    if (!organizerAccountId) {
+        console.error("Error in createEvent: organizerAccountId is missing from the request body.");
+        return res.status(400).json({ message: "Organizer ID is required in the request body." });
+    }
+    const parsedOrganizerAccountId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer ID format in request body." });
+    }
+
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: "At least one event image is required." });
+    }
+
+    if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venue) {
+        return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    let ticketTiers;
     try {
-        let queryText = `
-            SELECT 
-                e.event_id,
-                e.title,
-                e.description,
-                e.start_at,
-                e.end_at,
-                e.base_price,
-                e.category,
-                e.avg_rating,
-                e.hero_image_url,
-                e.tickets_sold,
-                e.view_count,
-                v.name as venue_name,
-                v.city,
-                v.address,
-                array_agg(DISTINCT f.name) as facilities
-            FROM events e
-            JOIN venues v ON e.venue_id = v.venue_id
-            LEFT JOIN venue_facilities vf ON v.venue_id = vf.venue_id
-            LEFT JOIN facilities f ON vf.facility_id = f.facility_id
-            WHERE e.status = 'PUBLISHED'
+        ticketTiers = JSON.parse(ticketTiersDataString);
+        if (!Array.isArray(ticketTiers) || ticketTiers.length === 0) {
+            throw new Error("Ticket tiers data is invalid or empty.");
+        }
+        for (const tier of ticketTiers) {
+            if (!tier.tierName || typeof tier.tierName !== 'string' || tier.tierName.trim() === "")
+                throw new Error("Invalid tier name.");
+            if (isNaN(parseFloat(tier.price)) || parseFloat(tier.price) < 0)
+                throw new Error(`Invalid price for tier ${tier.tierName}.`);
+            if (isNaN(parseInt(tier.quantity)) || parseInt(tier.quantity) <= 0)
+                throw new Error(`Invalid quantity for tier ${tier.tierName}. Must be a positive integer.`);
+        }
+    } catch (e) {
+        return res.status(400).json({ message: `Invalid ticket tiers data: ${e.message}` });
+    }
+
+    let startAtIso, endAtIso;
+    try {
+        startAtIso = new Date(`${startDate}T${startTime}`).toISOString();
+        endAtIso = new Date(`${endDate}T${endTime}`).toISOString();
+        if (new Date(endAtIso) <= new Date(startAtIso)) {
+            return res.status(400).json({ message: "End date/time must be after start date/time." });
+        }
+    } catch (e) {
+        return res.status(400).json({ message: "Invalid date or time format." });
+    }
+
+    const category = mapEventTypeToCategory(eventType);
+    const venueId = parseInt(venue, 10);
+
+    if (isNaN(venueId) || venueId <= 0) return res.status(400).json({ message: "Invalid Venue ID." });
+
+    const basePriceForEvent = ticketTiers.length > 0 ? parseFloat(ticketTiers[0].price) : 0;
+
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        const organizerCheckResult = await client.query('SELECT account_id FROM organizers WHERE account_id = $1', [parsedOrganizerAccountId]);
+        if (organizerCheckResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: `Organizer with ID ${parsedOrganizerAccountId} not found.` });
+        }
+
+        const heroImageUrl = `/uploads/${req.files[0].filename}`;
+        const eventInsertQuery = `
+            INSERT INTO events (
+                organizer_account_id, venue_id, category, title, description, rules,
+                start_at, end_at, status, base_price, hero_image_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING event_id, title, created_at, status;
         `;
+        const eventInsertValues = [
+            parsedOrganizerAccountId,
+            venueId, category, title, description, rules || null,
+            startAtIso, endAtIso, 'PUBLISHED', basePriceForEvent, heroImageUrl
+        ];
 
-        const queryParams = [];
-        let paramCount = 1;
+        const eventResult = await client.query(eventInsertQuery, eventInsertValues);
+        const newEventId = eventResult.rows[0].event_id;
 
-        // Add location filter
-        if (location) {
-            queryText += `
-                AND (LOWER(v.city) LIKE LOWER($${paramCount}) 
-                OR LOWER(v.name) LIKE LOWER($${paramCount}))
+        const imageInsertPromises = req.files.map(file => {
+            const imageUrl = `/uploads/${file.filename}`;
+            return client.query('INSERT INTO event_images (event_id, url, caption) VALUES ($1, $2, $3)',
+                [newEventId, imageUrl, file.originalname]);
+        });
+        await Promise.all(imageInsertPromises);
+
+        for (const tier of ticketTiers) {
+            const tierInsertQuery = `
+                INSERT INTO event_ticket_tiers (event_id, tier_name, price, quantity)
+                VALUES ($1, $2, $3, $4)
+                RETURNING tier_id;
             `;
-            queryParams.push(`%${location}%`);
-            paramCount++;
+            const tierResult = await client.query(tierInsertQuery, [
+                newEventId,
+                tier.tierName,
+                parseFloat(tier.price),
+                parseInt(tier.quantity)
+            ]);
+            const newTierId = tierResult.rows[0].tier_id;
+
+            const ticketInsertPromises = [];
+            for (let i = 0; i < parseInt(tier.quantity); i++) {
+                ticketInsertPromises.push(
+                    client.query(
+                        `INSERT INTO tickets (event_id, tier_id, status) VALUES ($1, $2, 'AVAILABLE')`,
+                        [newEventId, newTierId]
+                    )
+                );
+            }
+            await Promise.all(ticketInsertPromises);
         }
 
-        // Add date range filter
-        if (startDate) {
-            queryText += ` AND e.start_at >= $${paramCount}`;
-            queryParams.push(new Date(startDate));
-            paramCount++;
-        }
-        if (endDate) {
-            queryText += ` AND e.start_at <= $${paramCount}`;
-            queryParams.push(new Date(endDate));
-            paramCount++;
-        }
+        await client.query('COMMIT');
+        res.status(201).json({ message: "Event and tickets created successfully!", event: { event_id: newEventId } });
 
-        // Add category filter
-        if (category) {
-            queryText += ` AND e.category = $${paramCount}`;
-            queryParams.push(category);
-            paramCount++;
-        }
-
-        // Add price range filter
-        if (minPrice !== undefined) {
-            queryText += ` AND e.base_price >= $${paramCount}`;
-            queryParams.push(parseFloat(minPrice));
-            paramCount++;
-        }
-        if (maxPrice !== undefined) {
-            queryText += ` AND e.base_price <= $${paramCount}`;
-            queryParams.push(parseFloat(maxPrice));
-            paramCount++;
-        }
-
-        // Group by required fields
-        queryText += `
-            GROUP BY 
-                e.event_id,
-                e.title,
-                e.description,
-                e.start_at,
-                e.end_at,
-                e.base_price,
-                e.category,
-                e.avg_rating,
-                e.hero_image_url,
-                e.tickets_sold,
-                e.view_count,
-                v.name,
-                v.city,
-                v.address
-        `;
-
-        // Add sorting
-        switch (sortBy) {
-            case 'date_asc':
-                queryText += ' ORDER BY e.start_at ASC';
-                break;
-            case 'date_desc':
-                queryText += ' ORDER BY e.start_at DESC';
-                break;
-            case 'price_asc':
-                queryText += ' ORDER BY e.base_price ASC';
-                break;
-            case 'price_desc':
-                queryText += ' ORDER BY e.base_price DESC';
-                break;
-            case 'popularity':
-                queryText += ' ORDER BY e.tickets_sold DESC, e.view_count DESC';
-                break;
-            case 'rating':
-                queryText += ' ORDER BY e.avg_rating DESC NULLS LAST';
-                break;
-            default:
-                queryText += ' ORDER BY e.start_at ASC';
-        }
-
-        const result = await query(queryText, queryParams);
-        res.json(result.rows);
     } catch (error) {
-        console.error('Error in searchEvents:', error);
-        next(error);
+        await client.query('ROLLBACK');
+        console.error('Error during event creation transaction:', error);
+        if (error.code === '23503') {
+            next({ status: 400, message: `Invalid reference (e.g., organizer or venue ID not found). Details: ${error.detail}` });
+        } else if (error.code === '23505' && error.constraint === 'events_title_start_key') {
+            next({ status: 409, message: "An event with this title and start time already exists."});
+        } else if (error.constraint === 'event_ticket_tiers_event_id_tier_name_key') {
+            next({ status: 409, message: "Duplicate tier name for this event."});
+        } else {
+            next(error);
+        }
+    } finally {
+        client.release();
     }
 };
 
-export const getEventById = async (req, res, next) => {
-    const { id } = req.params;
 
+export const getOrganizerEvents = async (req, res, next) => {
+    // This route should be protected by your `checkAuth` middleware.
+    const { organizerAccountId } = req.body;
+
+    if (!organizerAccountId) {
+        return res.status(400).json({ message: "Organizer Account ID is required in the request body." });
+    }
+
+    const parsedOrganizerAccountId = parseInt(organizerAccountId, 10);
+    if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+    }
+
+    const client = await getClient();
     try {
-        const queryText = `
-            SELECT 
-                e.*,
-                v.name as venue_name,
-                v.city,
-                v.address,
-                v.capacity,
-                array_agg(DISTINCT f.name) as facilities,
-                json_agg(DISTINCT ei.*) as images,
-                json_agg(DISTINCT sp.*) as seat_pricing
+        const eventsQuery = `
+            SELECT
+                e.event_id, e.title, e.description, e.category, e.status,
+                e.start_at, e.end_at, e.base_price, e.tickets_sold, e.hero_image_url,
+                v.name AS venue_name, v.city AS venue_city, v.capacity AS venue_capacity
             FROM events e
             JOIN venues v ON e.venue_id = v.venue_id
-            LEFT JOIN venue_facilities vf ON v.venue_id = vf.venue_id
-            LEFT JOIN facilities f ON vf.facility_id = f.facility_id
-            LEFT JOIN event_images ei ON e.event_id = ei.event_id
-            LEFT JOIN seat_pricing sp ON e.event_id = sp.event_id
-            WHERE e.event_id = $1 AND e.status = 'PUBLISHED'
-            GROUP BY e.event_id, v.venue_id
+            WHERE e.organizer_account_id = $1
+            ORDER BY e.start_at DESC;
         `;
-
-        const result = await query(queryText, [id]);
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Event not found' });
-        }
-
-        // Increment view count
-        await query(
-            'UPDATE events SET view_count = view_count + 1 WHERE event_id = $1',
-            [id]
-        );
-
-        res.json(result.rows[0]);
+        const { rows } = await client.query(eventsQuery, [parsedOrganizerAccountId]);
+        res.status(200).json(rows);
     } catch (error) {
-        console.error('Error in getEventById:', error);
+        console.error(`Error fetching events for organizer ${parsedOrganizerAccountId} via POST:`, error);
         next(error);
+    } finally {
+        if (client) {
+            client.release();
+        }
     }
-}; 
+};
