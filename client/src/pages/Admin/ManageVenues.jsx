@@ -22,17 +22,17 @@ export default function ManageVenues() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  const approvedRequests = venueRequests.filter(v => v.status === 'approved');
-  const pendingRequests = venueRequests.filter(v => v.status === 'pending');
-  const rejectedRequests = venueRequests.filter(v => v.status === 'rejected');
+  const approvedRequests = venueRequests.filter(v => v.status === 'APPROVED');
+  const pendingRequests = venueRequests.filter(v => v.status === 'PENDING');
+  const rejectedRequests = venueRequests.filter(v => v.status === 'REJECTED');
 
   const getFilteredRequests = () => {
     switch (activeTab) {
-      case 'approved':
+      case 'APPROVED':
         return approvedRequests;
-      case 'pending':
+      case 'PENDING':
         return pendingRequests;
-      case 'rejected':
+      case 'REJECTED':
         return rejectedRequests;
       default:
         return venueRequests;
@@ -59,45 +59,29 @@ export default function ManageVenues() {
   const rejectedCount = rejectedRequests.length;
   
   const handleDeleteVenue = (venueId) => {
-    // API call 
     console.log(`Delete venue ${venueId}`);
     setShowDeleteDialog(false);
   };
   
   const handleApproveVenue = (venueId, approved) => {
-    // API call
     console.log(`${approved ? 'Approve' : 'Reject'} venue ${venueId}`);
     setShowApproveDialog(false);
   };
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'approved':
+      case 'APPROVED':
         return <Badge variant="default">Approved</Badge>;
-      case 'pending':
+      case 'PENDING':
         return <Badge variant="secondary">Pending</Badge>;
-      case 'rejected':
+      case 'REJECTED':
         return <Badge variant="destructive">Rejected</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
   };
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-
-    apiClient.get('/admin/venuesRequests')
-      .then(res => {
-        setVenueRequests(res.data); // adjust if your backend returns {venueRequests: [...]}
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load venue requests');
-        setLoading(false);
-      });
-  }, []);
-
+ 
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -118,7 +102,7 @@ export default function ManageVenues() {
         setLoading(false);
       });
   }, [activeTab, cityFilter, searchTerm]);
-  
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto py-8 px-4">
@@ -137,15 +121,15 @@ export default function ManageVenues() {
               All Requests
               <Badge variant="outline" className="ml-2">{venueRequests.length}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="approved">
+            <TabsTrigger value="APPROVED">
               Approved
               <Badge variant="outline" className="ml-2">{approvedCount}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="pending">
+            <TabsTrigger value="PENDING">
               Pending
               <Badge variant="outline" className="ml-2">{pendingCount}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="rejected">
+            <TabsTrigger value="REJECTED">
               Rejected
               <Badge variant="outline" className="ml-2">{rejectedCount}</Badge>
             </TabsTrigger>
@@ -188,9 +172,9 @@ export default function ManageVenues() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -244,61 +228,62 @@ export default function ManageVenues() {
                     <span className="font-medium text-muted-foreground">Contact:</span> {venue.contactEmail}
                   </div>
                   <div className="text-sm">
-                    <div className="font-medium text-muted-foreground mb-1">Amenities:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {venue.amenities.map((amenity, index) => (
-                        <Badge key={index} variant="outline" className="font-normal">
-                          {amenity}
-                        </Badge>
-                      ))}
-                    </div>
+                    <span className="font-medium text-muted-foreground">Seated:</span> {venue.seated ? 'Yes' : 'No'}
                   </div>
+                  {venue.seated ? (
+                    <>
+                      <div className="text-sm">
+                        <span className="font-medium text-muted-foreground">Rows:</span> {venue.rows}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-muted-foreground">Columns:</span> {venue.columns}
+                      </div>
+                    </>
+                  ) : null}
+                  
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between border-t pt-3">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Building className="h-4 w-4 mr-1" />
-                  {venue.eventsHosted} events hosted
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => {
-                      setSelectedVenue(venue);
-                      // Open details dialog or link to details page
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  
-                  {venue.status === 'pending' && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        setSelectedVenue(venue);
-                        setShowApproveDialog(true);
+                {venue.status === 'PENDING' ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      onClick={async () => {
+                        await apiClient.post('/admin/evaluateVenueRequest', {
+                          request_id: venue.id,
+                          action: 'APPROVED',
+                        });
+                        // Refresh the list
+                        const params = new URLSearchParams();
+                        if (activeTab !== 'all') params.append('status', activeTab);
+                        if (cityFilter && cityFilter !== 'all') params.append('city', cityFilter);
+                        if (searchTerm) params.append('search', searchTerm);
+                        const res = await apiClient.get(`/admin/venuesRequests?${params.toString()}`);
+                        setVenueRequests(res.data);
                       }}
                     >
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Approve
                     </Button>
-                  )}
-                  
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0 text-destructive"
-                    onClick={() => {
-                      setSelectedVenue(venue);
-                      setShowDeleteDialog(true);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                    <Button
+                      variant="destructive"
+                      onClick={async () => {
+                        await apiClient.post('/admin/evaluateVenueRequest', {
+                          request_id: venue.id,
+                          action: 'REJECTED',
+                        });
+                        // Refresh the list
+                        const params = new URLSearchParams();
+                        if (activeTab !== 'all') params.append('status', activeTab);
+                        if (cityFilter && cityFilter !== 'all') params.append('city', cityFilter);
+                        if (searchTerm) params.append('search', searchTerm);
+                        const res = await apiClient.get(`/admin/venuesRequests?${params.toString()}`);
+                        setVenueRequests(res.data);
+                      }}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : null}
               </CardFooter>
             </Card>
           ))}

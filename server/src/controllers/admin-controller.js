@@ -6,41 +6,77 @@ export const getVenuesRequests = async (req, res, next) => {
     try {
       const { status, city, search } = req.query;
       let queryText = `
-        SELECT vr.request_id, vr.name, vr.city, vr.capacity, vr.notes, vr.status,
-               o.account_id, o.display_name, o.bio, o.avg_rating
-        FROM venues_requests vr
+        SELECT vr.request_id, vr.name,vr.address, vr.city, vr.capacity,
+               vr.is_seated, vr.requested_layout_rows, vr.requested_layout_cols, vr.notes, vr.status,
+               o.account_id, o.display_name, o.bio, o.avg_rating, a.email
+        FROM venue_requests vr
         JOIN organizers o ON vr.organizer_account_id = o.account_id
+        JOIN accounts a ON vr.organizer_account_id = a.account_id
         WHERE 1=1
       `;
       const values = [];
 
-      if (status && status !== 'all') {
-        values.push(status);
-        queryText += ` AND vr.status = $${values.length}`;
-      }
-      if (city && city !== 'all') {
-        values.push(city);
-        queryText += ` AND vr.city = $${values.length}`;
-      }
-      if (search) {
-        values.push(`%${search.toLowerCase()}%`);
-        queryText += ` AND (LOWER(vr.name) LIKE $${values.length} OR LOWER(vr.city) LIKE $${values.length} OR LOWER(vr.request_id::text) LIKE $${values.length})`;
-      }
+      let paramIndex = 1;
 
+      if (status) {
+        queryText += ` AND vr.status = $${paramIndex++}`;
+        values.push(status);
+      }
+  
+      if (city) {
+        queryText += ` AND vr.city ILIKE $${paramIndex++}`;
+        values.push(city);
+      }
+  
+      if (search) {
+        queryText += `
+          AND (
+            LOWER(vr.name) LIKE $${paramIndex} OR
+            LOWER(vr.city) LIKE $${paramIndex} OR
+            CAST(vr.request_id AS TEXT) LIKE $${paramIndex}
+          )
+        `;
+        values.push(`%${search.toLowerCase()}%`);
+        paramIndex++;
+      }
+  
+      queryText += ` ORDER BY vr.created_at DESC`;
+  
       const result = await client.query(queryText, values);
-      res.status(200).json(result.rows);
-    } catch (error) {
-      console.error("Error fetching venues requests:", error);
-      next(error);
+  
+      const formattedVenues = result.rows.map(row => ({
+        id: row.request_id,
+        name: row.name,
+        address: row.address,
+        city: row.city,
+        capacity: row.capacity,
+        notes: row.notes,
+        status: row.status,
+        owner: row.display_name,
+        contactEmail: row.email,
+        seated: row.is_seated,
+        rows: row.requested_layout_rows,
+        columns: row.requested_layout_cols
+      }));
+  
+      res.json(formattedVenues);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Internal Server Error' });
     } finally {
       client.release();
     }
   };
 
+
 export const evaluateVenueRequest = async (req, res, next) => {
     const { request_id, action } = req.body;
-
-    if (!request_id || !['approved', 'declined'].includes(action)) {
+    if (!request_id){
+        return res.status(400).json({
+            message: "' or 'declined'."
+          });
+    }
+    if (!request_id || !['APPROVED', 'REJECTED'].includes(action)) {
       return res.status(400).json({
         message: "Request must include a valid 'request_id' and an action of 'approved' or 'declined'."
       });
@@ -50,7 +86,7 @@ export const evaluateVenueRequest = async (req, res, next) => {
         await client.query('BEGIN');
 
         const updateResult = await client.query(
-            'UPDATE venues_requests SET status = $1 WHERE request_id = $2 RETURNING *;',
+            'UPDATE venue_requests SET status = $1 WHERE request_id = $2 RETURNING *;',
             [action, request_id]
         );
         if (updateResult.rowCount === 0) {
@@ -58,31 +94,60 @@ export const evaluateVenueRequest = async (req, res, next) => {
             return res.status(404).json({ message: 'Venue request not found.' });
         }
         const request = updateResult.rows[0];
-        if (action === 'approved') {
+        if (action === 'APPROVED') {
             const insertVenueQuery = `
               INSERT INTO venues (
                 name,
                 address,
                 city,
                 capacity,
+                is_seated,
                 created_at,
                 updated_at
               )
-              VALUES ($1, NULL, $2, $3, NOW(), NOW())
+              VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
               RETURNING *;
             `;
       
             const venueResult = await client.query(insertVenueQuery, [
               request.name,
+              request.address,
               request.city,
-              request.capacity
+              request.capacity,
+              request.is_seated
             ]);
+            const venue = venueResult.rows[0];
+
+            // Insert seats if the venue is seated and rows/columns are provided
+            if (
+              request.is_seated &&
+              request.requested_layout_rows &&
+              request.requested_layout_cols
+            ) {
+              // Ensure these are integers
+              const numRows = parseInt(request.requested_layout_rows, 10);
+              const numCols = parseInt(request.requested_layout_cols, 10);
+
+              const seatInserts = [];
+              for (let row = 1; row <= numRows; row++) {
+                const rowLabel = String.fromCharCode(64 + row); // 1 -> 'A', 2 -> 'B', ...
+                for (let col = 1; col <= numCols; col++) {
+                  seatInserts.push(
+                    client.query(
+                      "INSERT INTO seats (venue_id, section, row_label, seat_number) VALUES ($1, 'Main', $2, $3)",
+                      [venue.venue_id, rowLabel, col]
+                    )
+                  );
+                }
+              }
+              await Promise.all(seatInserts);
+            }
       
             await client.query('COMMIT');
       
             return res.status(200).json({
               message: 'Venue request approved and venue added.',
-              venue: venueResult.rows[0]
+              venue
             });
         }
         await client.query('COMMIT');
