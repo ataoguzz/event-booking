@@ -128,12 +128,27 @@ const SeatAssignment = ({
     const assignTierToSelectedSeats = () => {
         if (!selectedTier || selectedSeats.length === 0) return;
         
-        const newAssignments = { ...seatAssignments };
+        // Get the ticket quantity for the selected tier
+        const tierData = ticketTiers.find(tier => tier.tierName === selectedTier);
+        const tierQuantity = parseInt(tierData?.quantity, 10) || 0;
+        
+        // Count current assignments for this tier
+        const currentAssignments = Object.values(seatAssignments).filter(tier => tier === selectedTier).length;
+        
+        // Check if adding selected seats would exceed tier quantity
+        const newAssignments = currentAssignments + selectedSeats.length;
+        if (newAssignments > tierQuantity) {
+            const availableSlots = Math.max(0, tierQuantity - currentAssignments);
+            alert(`Cannot assign ${selectedSeats.length} seats to ${selectedTier}. Only ${availableSlots} seats available (${tierQuantity} total tickets, ${currentAssignments} already assigned).`);
+            return;
+        }
+        
+        const newAssignmentMap = { ...seatAssignments };
         selectedSeats.forEach(seatId => {
-            newAssignments[seatId] = selectedTier;
+            newAssignmentMap[seatId] = selectedTier;
         });
         
-        setSeatAssignments(newAssignments);
+        setSeatAssignments(newAssignmentMap);
         setSelectedSeats([]);
     };
 
@@ -149,6 +164,26 @@ const SeatAssignment = ({
 
     const assignTierToAll = (tierName) => {
         if (!seatData?.seat_layout) return;
+        
+        // Get the ticket quantity for this tier
+        const tierData = ticketTiers.find(tier => tier.tierName === tierName);
+        const tierQuantity = parseInt(tierData?.quantity, 10) || 0;
+        
+        // Count total available seats
+        let totalSeats = 0;
+        Object.values(seatData.seat_layout).forEach(sections => {
+            Object.values(sections).forEach(rows => {
+                totalSeats += rows.length;
+            });
+        });
+        
+        // Check if tier quantity is less than total seats
+        if (tierQuantity < totalSeats) {
+            const confirmMessage = `This will assign ${totalSeats} seats to ${tierName}, but you only have ${tierQuantity} tickets for this tier. This will exceed your ticket quantity. Do you want to continue?`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+        }
         
         const newAssignments = {};
         Object.values(seatData.seat_layout).forEach(sections => {
@@ -316,15 +351,42 @@ const SeatAssignment = ({
                     </div>
 
                     {/* Assignment Statistics */}
-                    <div className="flex flex-wrap gap-4 text-sm">
-                        {ticketTiers
-                            .filter(tier => tier.tierName && tier.tierName.trim() !== '')
-                            .map((tier, index) => (
-                            <div key={tier.tierName} className="flex items-center gap-2">
-                                <div className={`w-4 h-4 rounded ${getTierColorClasses(index)}`}></div>
-                                <span>{tier.tierName}: {assignmentStats[tier.tierName]} seats</span>
+                    <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Assignment Status:</h4>
+                        <div className="flex flex-wrap gap-4 text-sm">
+                            {ticketTiers
+                                .filter(tier => tier.tierName && tier.tierName.trim() !== '')
+                                .map((tier, index) => {
+                                    const assignedCount = assignmentStats[tier.tierName] || 0;
+                                    const ticketQuantity = parseInt(tier.quantity, 10) || 0;
+                                    const isOverAssigned = assignedCount > ticketQuantity;
+                                    const isFullyAssigned = assignedCount === ticketQuantity;
+                                    
+                                    return (
+                                        <div key={tier.tierName} className="flex items-center gap-2">
+                                            <div className={`w-4 h-4 rounded ${getTierColorClasses(index)}`}></div>
+                                            <span className={`${isOverAssigned ? 'text-red-600 font-semibold' : isFullyAssigned ? 'text-green-600' : ''}`}>
+                                                {tier.tierName}: {assignedCount}/{ticketQuantity} seats
+                                                {isOverAssigned && ' ⚠️'}
+                                                {isFullyAssigned && !isOverAssigned && ' ✅'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                        {/* Warning for over-assignments */}
+                        {ticketTiers.some(tier => {
+                            const assignedCount = assignmentStats[tier.tierName] || 0;
+                            const ticketQuantity = parseInt(tier.quantity, 10) || 0;
+                            return assignedCount > ticketQuantity;
+                        }) && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-sm text-red-700">
+                                    ⚠️ <strong>Warning:</strong> Some tiers have more assigned seats than available tickets. 
+                                    Please adjust your seat assignments or increase ticket quantities.
+                                </p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
 

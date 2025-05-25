@@ -26,7 +26,6 @@ const Wallet = React.lazy(() => import("../pages/Attendee/Wallet.jsx"));
 // Organizer Pages
 const MyEvents = React.lazy(() => import("../pages/Organizer/MyEvents.jsx"));
 const CreateEvent = React.lazy(() => import("../pages/Organizer/CreateEvent.jsx"));
-const Followers = React.lazy(() => import("../pages/Organizer/Followers.jsx"));
 const Analytics = React.lazy(() => import("../pages/Organizer/Analytics.jsx"));
 const OrganizerProfile = React.lazy(() => import("../pages/Organizer/Profile.jsx"));
 
@@ -108,10 +107,6 @@ const AllRoutes = () => {
         {
             path: "/create-event",
             element: user && user.role === "organizer" ? <LoadComponent component={CreateEvent} /> : <Navigate to="/login" />
-        },
-        {
-            path: "/followers",
-            element: user && user.role === "organizer" ? <LoadComponent component={Followers} /> : <Navigate to="/login" />
         },
         {
             path: "/analytics",

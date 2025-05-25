@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Calendar, Star, Search, Users, Plus, Check } from 'lucide-react';
 import apiClient from '../../helpers/apiCore.js';
+import { getAvatarUrl } from '@/helpers/imageUtils.js';
 
 export default function FindOrganizers() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +185,7 @@ function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
 
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
         <Avatar className="h-12 w-12">
-          <AvatarImage src={organizer.avatar_url} />
+          <AvatarImage src={getAvatarUrl(organizer.avatar_url)} />
           <AvatarFallback>{organizer.display_name.substring(0, 2)}</AvatarFallback>
         </Avatar>
         <div>

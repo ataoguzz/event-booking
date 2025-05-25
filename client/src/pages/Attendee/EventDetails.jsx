@@ -1,35 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 import Layout from '@/components/Layout.jsx';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card.jsx';
 import { Button } from '@/components/ui/button.jsx';
-import {
-  Card,
-  CardHeader,
-  CardContent,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
-import { Separator } from '@/components/ui/separator.jsx';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Users, 
-  Star, 
-  ChevronLeft, 
-  ChevronRight,
-  Wifi,
-  Car,
-  Coffee,
-  Accessibility,
-  Utensils,
-  Wine,
-  Bus,
-  CreditCard
-} from 'lucide-react';
-import apiClient from '../../helpers/apiCore.js';
+import { CalendarDays, MapPin, Clock, Users, Star, DollarSign } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import apiClient from '@/helpers/apiCore.js';
+import { getAvatarUrl } from '@/helpers/imageUtils.js';
 
 const EventDetails = () => {
   const { eventId } = useParams();
@@ -422,7 +401,7 @@ const EventDetails = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                       <img 
-                        src={event.organizer.avatar_url} 
+                        src={getAvatarUrl(event.organizer.avatar_url)} 
                         alt="" 
                         className="w-full h-full object-cover"
                       />

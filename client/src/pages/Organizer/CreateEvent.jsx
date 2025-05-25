@@ -48,6 +48,17 @@ const CreateEvent = () => {
     // Use useRef for a persistent, incrementing ID that doesn't cause re-renders
     const nextTierId = useRef(1);
 
+    // Helper function to calculate remaining capacity for a specific tier
+    const getRemainingCapacity = (excludeTierId = null) => {
+        if (!selectedVenue || selectedVenue.capacity <= 0) return Infinity;
+        
+        const usedCapacity = ticketTiers
+            .filter(tier => tier.id !== excludeTierId)
+            .reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+        
+        return Math.max(0, selectedVenue.capacity - usedCapacity);
+    };
+
     // Initialize the first tier with an ID from the ref
     const getInitialTier = () => {
         const id = nextTierId.current;
@@ -111,8 +122,70 @@ const CreateEvent = () => {
         }
     };
 
-    const handleTierChange = (id, field, value) => { /* ... same as before ... */
+    const handleTierChange = (id, field, value) => {
         const oldTier = ticketTiers.find(tier => tier.id === id);
+        
+        // If changing quantity, validate against venue capacity
+        if (field === 'quantity' && selectedVenue && selectedVenue.capacity > 0) {
+            const numValue = parseInt(value, 10);
+            if (!isNaN(numValue) && numValue > 0) {
+                // Calculate total quantity excluding the current tier being changed
+                const otherTiersTotal = ticketTiers
+                    .filter(tier => tier.id !== id)
+                    .reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                
+                const newTotal = otherTiersTotal + numValue;
+                
+                // Prevent exceeding venue capacity
+                if (newTotal > selectedVenue.capacity) {
+                    const maxAllowed = selectedVenue.capacity - otherTiersTotal;
+                    setErrors(prev => ({
+                        ...prev,
+                        ticketTiers: {
+                            ...prev.ticketTiers,
+                            [id]: {
+                                ...prev.ticketTiers?.[id],
+                                quantity: `Maximum ${maxAllowed} tickets allowed (venue capacity: ${selectedVenue.capacity.toLocaleString()})`
+                            }
+                        }
+                    }));
+                    return; // Don't update the value
+                }
+                
+                // Prevent individual tier from exceeding venue capacity
+                if (numValue > selectedVenue.capacity) {
+                    setErrors(prev => ({
+                        ...prev,
+                        ticketTiers: {
+                            ...prev.ticketTiers,
+                            [id]: {
+                                ...prev.ticketTiers?.[id],
+                                quantity: `Cannot exceed venue capacity of ${selectedVenue.capacity.toLocaleString()}`
+                            }
+                        }
+                    }));
+                    return; // Don't update the value
+                }
+            }
+        }
+        
+        // If changing price, validate it's not negative
+        if (field === 'price') {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue) && numValue < 0) {
+                setErrors(prev => ({
+                    ...prev,
+                    ticketTiers: {
+                        ...prev.ticketTiers,
+                        [id]: {
+                            ...prev.ticketTiers?.[id],
+                            price: "Price cannot be negative"
+                        }
+                    }
+                }));
+                return; // Don't update negative prices
+            }
+        }
         
         setTicketTiers(prevTiers =>
             prevTiers.map(tier =>
@@ -131,6 +204,7 @@ const CreateEvent = () => {
             setSeatAssignments(newSeatAssignments);
         }
         
+        // Clear errors for this field if value is being updated successfully
         if (errors.ticketTiers && errors.ticketTiers[id] && errors.ticketTiers[id][field]) {
             setErrors(prev => ({
                 ...prev,
@@ -244,7 +318,14 @@ const CreateEvent = () => {
                     currentTierErrors.quantity = "Quantity must be a positive integer.";
                     hasTierError = true;
                 } else {
-                    totalTierQuantity += parseInt(tier.quantity, 10);
+                    const quantity = parseInt(tier.quantity, 10);
+                    totalTierQuantity += quantity;
+                    
+                    // Validate individual tier quantity against venue capacity
+                    if (selectedVenue && selectedVenue.capacity > 0 && quantity > selectedVenue.capacity) {
+                        currentTierErrors.quantity = `Tier quantity (${quantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
+                        hasTierError = true;
+                    }
                 }
                 if (Object.keys(currentTierErrors).length > 0) {
                     tierErrors[tier.id] = currentTierErrors;
@@ -255,12 +336,19 @@ const CreateEvent = () => {
             newErrors.ticketTiers = tierErrors; // Store all tier-specific errors
         }
 
-
+        // Validate total ticket quantity against venue capacity
         if (selectedVenue && selectedVenue.capacity > 0 && totalTierQuantity > selectedVenue.capacity) {
-            newErrors.ticketTiersGeneral = `Total quantity of tickets (${totalTierQuantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
+            newErrors.ticketTiersGeneral = `Total ticket quantity (${totalTierQuantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
         }
+        
+        // Special validation for seated venues with zero capacity
         if (selectedVenue && selectedVenue.capacity === 0 && totalTierQuantity > 0 && selectedVenue.isSeated) {
-            newErrors.ticketTiersGeneral = `This seated venue has a capacity of 0. Please check venue details.`;
+            newErrors.ticketTiersGeneral = `This seated venue has a capacity of 0. Please check venue details or contact support.`;
+        }
+        
+        // For non-seated venues, warn if total tickets significantly exceed capacity
+        if (selectedVenue && !selectedVenue.isSeated && selectedVenue.capacity > 0 && totalTierQuantity > selectedVenue.capacity * 1.1) {
+            newErrors.ticketTiersGeneral = `Warning: Total tickets (${totalTierQuantity.toLocaleString()}) significantly exceed venue capacity (${selectedVenue.capacity.toLocaleString()}). This may cause overcrowding.`;
         }
 
         // Validate seat assignments for seated venues
@@ -274,6 +362,25 @@ const CreateEvent = () => {
                 const invalidAssignments = Object.values(seatAssignments).filter(tierName => !tierNames.includes(tierName));
                 if (invalidAssignments.length > 0) {
                     newErrors.seatAssignments = "Some seat assignments reference invalid tier names.";
+                }
+                
+                // Validate that seat assignments don't exceed ticket quantities
+                const assignmentCounts = {};
+                Object.values(seatAssignments).forEach(tierName => {
+                    assignmentCounts[tierName] = (assignmentCounts[tierName] || 0) + 1;
+                });
+                
+                const overAssignedTiers = [];
+                ticketTiers.forEach(tier => {
+                    const assignedCount = assignmentCounts[tier.tierName] || 0;
+                    const ticketQuantity = parseInt(tier.quantity, 10) || 0;
+                    if (assignedCount > ticketQuantity) {
+                        overAssignedTiers.push(`${tier.tierName} (${assignedCount} seats assigned, ${ticketQuantity} tickets available)`);
+                    }
+                });
+                
+                if (overAssignedTiers.length > 0) {
+                    newErrors.seatAssignments = `The following tiers have more assigned seats than available tickets: ${overAssignedTiers.join(', ')}. Please adjust seat assignments or increase ticket quantities.`;
                 }
             }
         }
@@ -459,6 +566,49 @@ const CreateEvent = () => {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {errors.ticketTiersGeneral && <Alert variant="destructive"><AlertDescription>{errors.ticketTiersGeneral}</AlertDescription></Alert>}
+                            
+                            {/* Capacity Indicator */}
+                            {selectedVenue && selectedVenue.capacity > 0 && (
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="font-medium">Total Tickets vs Venue Capacity:</span>
+                                        <span className={`font-bold ${
+                                            (() => {
+                                                const total = ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                                                return total > selectedVenue.capacity ? 'text-red-600' : 
+                                                       total > selectedVenue.capacity * 0.9 ? 'text-yellow-600' : 'text-green-600';
+                                            })()
+                                        }`}>
+                                            {ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0).toLocaleString()} / {selectedVenue.capacity.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-gray-600 mt-1">
+                                        <span>Remaining capacity:</span>
+                                        <span className="font-medium">
+                                            {Math.max(0, selectedVenue.capacity - ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0)).toLocaleString()} tickets
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                            className={`h-2 rounded-full transition-all duration-300 ${
+                                                (() => {
+                                                    const total = ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                                                    const percentage = (total / selectedVenue.capacity) * 100;
+                                                    return percentage > 100 ? 'bg-red-500' : 
+                                                           percentage > 90 ? 'bg-yellow-500' : 'bg-green-500';
+                                                })()
+                                            }`}
+                                            style={{
+                                                width: `${Math.min(
+                                                    (ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0) / selectedVenue.capacity) * 100,
+                                                    100
+                                                )}%`
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                            
                             {ticketTiers.map((tier, index) => (
                                 <Card key={tier.id} className="p-4 space-y-3 bg-muted/40"> {/* Use key={tier.id} */}
                                     <div className="flex justify-between items-center">
@@ -507,8 +657,20 @@ const CreateEvent = () => {
                                                     type="number"
                                                     value={tier.quantity}
                                                     onChange={(e) => handleTierChange(tier.id, 'quantity', e.target.value)}
+                                                    onInput={(e) => {
+                                                        // Prevent typing values that exceed remaining venue capacity
+                                                        if (selectedVenue && selectedVenue.capacity > 0) {
+                                                            const inputValue = parseInt(e.target.value, 10);
+                                                            const remainingCapacity = getRemainingCapacity(tier.id);
+                                                            
+                                                            if (!isNaN(inputValue) && inputValue > remainingCapacity) {
+                                                                e.target.value = remainingCapacity.toString();
+                                                            }
+                                                        }
+                                                    }}
                                                     placeholder="0"
                                                     min="1"
+                                                    max={selectedVenue && selectedVenue.capacity > 0 ? getRemainingCapacity(tier.id) : undefined}
                                                     step="1"
                                                     className={`pl-8 ${errors.ticketTiers?.[tier.id]?.quantity ? "border-red-500" : ""}`}
                                                 />

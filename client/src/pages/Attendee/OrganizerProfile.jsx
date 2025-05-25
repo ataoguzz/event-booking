@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button.jsx';
 import { StarIcon, UserIcon, Check, Plus, CalendarDays, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import organizerService from '@/services/organizerService.js';
+import apiClient from '@/helpers/apiCore.js';
+import { getAvatarUrl } from '@/helpers/imageUtils.js';
 
 export default function OrganizerProfile() {
   const { id } = useParams();
@@ -18,21 +20,43 @@ export default function OrganizerProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowingLoading, setIsFollowingLoading] = useState(false);
 
-  // Get API base URL from the window location instead of hardcoding
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                     window.location.origin.replace(/:\d+$/, ':3001');
-
   useEffect(() => {
-    // Load public organizer data
-    const loadPublicProfile = async () => {
+    // Load public organizer data and followed organizers list
+    const loadData = async () => {
       try {
         setIsLoading(true);
-        const data = await organizerService.getPublicProfile(id);
         
-        if (data) {
-          console.log("Organizer data received:", data);
-          setOrganizer(data);
-          setIsFollowing(data.is_following);
+        // Fetch both organizer profile and followed organizers list
+        const [organizerData, followedData] = await Promise.all([
+          organizerService.getPublicProfile(id),
+          apiClient.get('/users/organizers/following')
+        ]);
+        
+        if (organizerData) {
+          console.log("Organizer data received:", organizerData);
+          console.log("is_following value:", organizerData.is_following, "type:", typeof organizerData.is_following);
+          console.log("Followed organizers list:", followedData.data);
+          
+          setOrganizer(organizerData);
+          
+          // Check if this organizer is in the followed list
+          const organizerIdNum = parseInt(id);
+          const organizerIdStr = id.toString();
+          const isInFollowedList = followedData.data.includes(organizerIdNum) || followedData.data.includes(organizerIdStr);
+          
+          console.log("=== FOLLOW STATUS DEBUG ===");
+          console.log("Organizer ID from URL:", id, "type:", typeof id);
+          console.log("Organizer ID as number:", organizerIdNum);
+          console.log("Organizer ID as string:", organizerIdStr);
+          console.log("Followed organizers list:", followedData.data);
+          console.log("List includes number check:", followedData.data.includes(organizerIdNum));
+          console.log("List includes string check:", followedData.data.includes(organizerIdStr));
+          console.log("Final isInFollowedList:", isInFollowedList);
+          console.log("API is_following value:", organizerData.is_following);
+          console.log("=== END DEBUG ===");
+          
+          // Use the followed list as the source of truth
+          setIsFollowing(isInFollowedList);
         } else {
           console.error("No data received from organizer profile API");
           toast({
@@ -54,9 +78,14 @@ export default function OrganizerProfile() {
     };
     
     if (id) {
-      loadPublicProfile();
+      loadData();
     }
   }, [id, toast]);
+
+  // Debug useEffect to monitor isFollowing changes
+  useEffect(() => {
+    console.log("isFollowing state changed to:", isFollowing, "type:", typeof isFollowing);
+  }, [isFollowing]);
 
   const handleFollowToggle = async () => {
     if (!user) {
@@ -70,8 +99,15 @@ export default function OrganizerProfile() {
 
     try {
       setIsFollowingLoading(true);
-      await organizerService.toggleFollow(organizer.account_id, isFollowing);
       
+      // Use the same API calls as FindOrganizers
+      if (isFollowing) {
+        await apiClient.delete(`/users/organizers/follow/${organizer.account_id}`);
+      } else {
+        await apiClient.post(`/users/organizers/follow/${organizer.account_id}`);
+      }
+      
+      // Update the local state
       setIsFollowing(!isFollowing);
       setOrganizer(prev => ({
         ...prev,
@@ -123,9 +159,7 @@ export default function OrganizerProfile() {
   }
 
   // Ensure avatar URL is absolute
-  const displayAvatarUrl = organizer.avatar_url && organizer.avatar_url.startsWith('/uploads/')
-    ? `${apiBaseUrl}${organizer.avatar_url}`
-    : organizer.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
+  const displayAvatarUrl = getAvatarUrl(organizer.avatar_url);
 
   return (
     <Layout>
@@ -137,6 +171,7 @@ export default function OrganizerProfile() {
         </div>
         
         <h1 className="text-3xl font-bold mb-6">{organizer.display_name}</h1>
+        
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Profile Card */}
@@ -264,7 +299,7 @@ export default function OrganizerProfile() {
                     </CardContent>
                     <CardFooter>
                       <Button asChild className="w-full">
-                        <Link to={`/events/${event.event_id}`}>View Event</Link>
+                        <Link to={`/event/${event.event_id}`}>View Event</Link>
                       </Button>
                     </CardFooter>
                   </Card>

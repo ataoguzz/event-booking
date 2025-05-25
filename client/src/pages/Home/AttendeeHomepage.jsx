@@ -79,7 +79,7 @@ export default function AttendeeHomepage() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
-            Welcome back, {user?.full_name}! 👋
+            Welcome back, {user?.full_name}!
           </h1>
           <p className="text-lg text-muted-foreground">
             Here are the latest events from organizers you follow
