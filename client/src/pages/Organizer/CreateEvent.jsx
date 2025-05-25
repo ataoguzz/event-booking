@@ -26,6 +26,7 @@ import { format } from "date-fns";
 // import { v4 as uuidv4 } from 'uuid'; // REMOVE THIS LINE
 import apiClient from "@/helpers/apiCore.js";
 import { useAuth } from "@/contexts/AuthContext.jsx";
+import SeatAssignment from "@/components/SeatAssignment.jsx";
 
 const CreateEvent = () => {
     const navigate = useNavigate();
@@ -62,13 +63,13 @@ const CreateEvent = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [venues, setVenues] = useState([]);
     const [venueRequest, setVenueRequest] = useState({name: "", address: "", capacity: "", description: ""});
-
+    const [seatAssignments, setSeatAssignments] = useState({}); // For seated venues
 
     // ... (useEffect for fetchVenues remains the same) ...
     useEffect(() => {
         const fetchVenues = async () => {
             try {
-                const response = await apiClient.get("/venues/venues");
+                const response = await apiClient.get("/venue/venues");
                 setVenues(response.data || []);
             } catch (error) {
                 console.error("Error fetching venues:", error);
@@ -80,15 +81,27 @@ const CreateEvent = () => {
 
 
     const eventTypes = [
-        "Concert", "Theater", "Stand-up Comedy", "Conference", "Workshop",
-        "Festival", "Sports Event", "Exhibition", "Dance Performance", "Other",
+        "CONCERT", "THEATER", "SPORTS", "STANDUP", "CONFERENCE", "WORKSHOP", "FESTIVAL", "OTHER",
     ];
+
+    const eventTypeLabels = {
+        "CONCERT": "CONCERT",
+        "THEATER": "THEATER",
+        "SPORTS": "SPORTS",
+        "STANDUP": "STANDUP",
+        "CONFERENCE": "CONFERENCE",
+        "WORKSHOP": "WORKSHOP",
+        "FESTIVAL": "FESTIVAL",
+        "OTHER": "OTHER"
+    };
 
     const handleInputChange = (field, value) => { /* ... same as before ... */
         if (field === 'venue') {
             const SVenue = venues.find(v => v.id.toString() === value);
             setSelectedVenue(SVenue || null);
             setFormData(prev => ({ ...prev, venue: value }));
+            // Clear seat assignments when venue changes
+            setSeatAssignments({});
         } else {
             setFormData(prev => ({ ...prev, [field]: value }));
         }
@@ -99,11 +112,25 @@ const CreateEvent = () => {
     };
 
     const handleTierChange = (id, field, value) => { /* ... same as before ... */
+        const oldTier = ticketTiers.find(tier => tier.id === id);
+        
         setTicketTiers(prevTiers =>
             prevTiers.map(tier =>
                 tier.id === id ? { ...tier, [field]: value } : tier
             )
         );
+        
+        // Update seat assignments if tier name changed
+        if (field === 'tierName' && oldTier && oldTier.tierName !== value) {
+            const newSeatAssignments = { ...seatAssignments };
+            Object.keys(newSeatAssignments).forEach(seatId => {
+                if (newSeatAssignments[seatId] === oldTier.tierName) {
+                    newSeatAssignments[seatId] = value;
+                }
+            });
+            setSeatAssignments(newSeatAssignments);
+        }
+        
         if (errors.ticketTiers && errors.ticketTiers[id] && errors.ticketTiers[id][field]) {
             setErrors(prev => ({
                 ...prev,
@@ -126,7 +153,19 @@ const CreateEvent = () => {
 
     const removeTier = (idToRemove) => { /* ... same as before ... */
         if (ticketTiers.length > 1) {
+            const tierToRemove = ticketTiers.find(tier => tier.id === idToRemove);
             setTicketTiers(ticketTiers.filter(tier => tier.id !== idToRemove));
+            
+            // Clean up seat assignments that reference the removed tier
+            if (tierToRemove) {
+                const newSeatAssignments = { ...seatAssignments };
+                Object.keys(newSeatAssignments).forEach(seatId => {
+                    if (newSeatAssignments[seatId] === tierToRemove.tierName) {
+                        delete newSeatAssignments[seatId];
+                    }
+                });
+                setSeatAssignments(newSeatAssignments);
+            }
         } else {
             alert("You must have at least one ticket tier.");
         }
@@ -224,6 +263,20 @@ const CreateEvent = () => {
             newErrors.ticketTiersGeneral = `This seated venue has a capacity of 0. Please check venue details.`;
         }
 
+        // Validate seat assignments for seated venues
+        if (selectedVenue && selectedVenue.isSeated) {
+            const assignedSeats = Object.keys(seatAssignments).length;
+            if (assignedSeats === 0) {
+                newErrors.seatAssignments = "Please assign tiers to seats for this seated venue.";
+            } else {
+                // Validate that all assigned tiers exist in ticket tiers
+                const tierNames = ticketTiers.map(tier => tier.tierName);
+                const invalidAssignments = Object.values(seatAssignments).filter(tierName => !tierNames.includes(tierName));
+                if (invalidAssignments.length > 0) {
+                    newErrors.seatAssignments = "Some seat assignments reference invalid tier names.";
+                }
+            }
+        }
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -264,6 +317,11 @@ const CreateEvent = () => {
 
         // Exclude temporary client-side 'id' from each tier object
         data.append('ticketTiersData', JSON.stringify(ticketTiers.map(({ id, ...rest }) => rest)));
+
+        // Add seat assignments for seated venues
+        if (selectedVenue && selectedVenue.isSeated && Object.keys(seatAssignments).length > 0) {
+            data.append('seatAssignments', JSON.stringify(seatAssignments));
+        }
 
         formData.images.forEach(imageObj => {
             data.append('images', imageObj.file, imageObj.name);
@@ -314,7 +372,7 @@ const CreateEvent = () => {
                                     <Label htmlFor="eventType">Event Type *</Label>
                                     <Select value={formData.eventType} onValueChange={(value) => handleInputChange("eventType", value)}>
                                         <SelectTrigger className={errors.eventType ? "border-red-500" : ""}> <SelectValue placeholder="Select event type" /> </SelectTrigger>
-                                        <SelectContent>{eventTypes.map((type) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent>
+                                        <SelectContent>{eventTypes.map((type) => (<SelectItem key={type} value={type}>{eventTypeLabels[type]}</SelectItem>))}</SelectContent>
                                     </Select>
                                     {errors.eventType && <p className="text-sm text-red-500">{errors.eventType}</p>}
                                 </div>
@@ -395,7 +453,8 @@ const CreateEvent = () => {
                             <CardDescription>
                                 Define different ticket tiers for your event.
                                 {selectedVenue && selectedVenue.isSeated === false && " For non-seated venues, these will be General Admission tiers."}
-                                {selectedVenue && ` Max venue capacity: ${selectedVenue.capacity?.toLocaleString() || 'N/A'}. Ensure total ticket quantity doesn't exceed this.`}
+                                {selectedVenue && selectedVenue.isSeated && " For seated venues, you'll assign these tiers to specific seats in the next step."}
+                                {selectedVenue && ` Max venue capacity: ${selectedVenue.capacity?.toLocaleString() || 'N/A'}. ${selectedVenue.isSeated ? 'Assign tiers to seats below.' : 'Ensure total ticket quantity doesn\'t exceed this.'}`}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -465,6 +524,16 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
+                    {/* Seat Assignment Card - only show for seated venues */}
+                    {selectedVenue && selectedVenue.isSeated && (
+                        <SeatAssignment 
+                            selectedVenue={selectedVenue}
+                            ticketTiers={ticketTiers}
+                            seatAssignments={seatAssignments}
+                            setSeatAssignments={setSeatAssignments}
+                            errors={errors}
+                        />
+                    )}
 
                     {/* Event Images Card */}
                     <Card>

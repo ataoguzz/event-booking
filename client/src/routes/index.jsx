@@ -14,8 +14,13 @@ const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx")
 
 // Attendee Pages
 const BrowseEvents = React.lazy(() => import("../pages/Attendee/BrowseEvents.jsx"));
+const EventDetails = React.lazy(() => import("../pages/Attendee/EventDetails.jsx"));
+const SeatSelection = React.lazy(() => import("../pages/Attendee/SeatSelection.jsx"));
+const Checkout = React.lazy(() => import("../pages/Attendee/Checkout.jsx"));
+const TicketDetails = React.lazy(() => import("../pages/Attendee/TicketDetails.jsx"));
 const MyTickets = React.lazy(() => import("../pages/Attendee/MyTickets.jsx"));
 const FindOrganizers = React.lazy(() => import("../pages/Attendee/FindOrganizers.jsx"));
+const AttendeeOrganizerProfile = React.lazy(() => import("../pages/Attendee/OrganizerProfile.jsx"));
 const Wallet = React.lazy(() => import("../pages/Attendee/Wallet.jsx"));
 
 // Organizer Pages
@@ -23,6 +28,7 @@ const MyEvents = React.lazy(() => import("../pages/Organizer/MyEvents.jsx"));
 const CreateEvent = React.lazy(() => import("../pages/Organizer/CreateEvent.jsx"));
 const Followers = React.lazy(() => import("../pages/Organizer/Followers.jsx"));
 const Analytics = React.lazy(() => import("../pages/Organizer/Analytics.jsx"));
+const OrganizerProfile = React.lazy(() => import("../pages/Organizer/Profile.jsx"));
 
 // Admin Pages
 const Dashboard = React.lazy(() => import("../pages/Admin/Dashboard.jsx"));
@@ -62,12 +68,32 @@ const AllRoutes = () => {
             element: user && user.role === "attendee" ? <LoadComponent component={BrowseEvents} /> : <Navigate to="/login" />
         },
         {
+            path: "/event/:eventId",
+            element: user && user.role === "attendee" ? <LoadComponent component={EventDetails} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/event/:eventId/choose-seat",
+            element: user && user.role === "attendee" ? <LoadComponent component={SeatSelection} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/event/:eventId/checkout",
+            element: user && user.role === "attendee" ? <LoadComponent component={Checkout} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/tickets/:transactionId",
+            element: user && user.role === "attendee" ? <LoadComponent component={TicketDetails} /> : <Navigate to="/login" />
+        },
+        {
             path: "/my-tickets",
             element: user && user.role === "attendee" ? <LoadComponent component={MyTickets} /> : <Navigate to="/login" />
         },
         {
             path: "/find-organizers",
             element: user && user.role === "attendee" ? <LoadComponent component={FindOrganizers} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/organizers/:id",
+            element: user && user.role === "attendee" ? <LoadComponent component={AttendeeOrganizerProfile} /> : <Navigate to="/login" />
         },
         {
             path: "/wallet",
@@ -90,6 +116,10 @@ const AllRoutes = () => {
         {
             path: "/analytics",
             element: user && user.role === "organizer" ? <LoadComponent component={Analytics} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/profile",
+            element: user && user.role === "organizer" ? <LoadComponent component={OrganizerProfile} /> : <Navigate to="/login" />
         },
         
         // Admin Routes
