@@ -6,9 +6,9 @@ export const getVenuesRequests = async (req, res, next) => {
     try {
       const queryText = `
         SELECT vr.request_id, vr.name, vr.city, vr.capacity, vr.notes, vr.status,
-               o.account_id AS organizer_id, o.display_name, o.bio, o.avg_rating
+               o.account_id, o.display_name, o.bio, o.avg_rating
         FROM venues_requests vr
-        JOIN organizers o ON vr.organizer_account_id = o.account_id\
+        JOIN organizers o ON vr.organizer_account_id = o.account_id
       `;
       const result = await client.query(queryText);
       res.status(200).json(result.rows);
@@ -82,3 +82,42 @@ export const evaluateVenueRequest = async (req, res, next) => {
         client.release();
     }
 }
+
+export const getAllEvents = async (req, res, next) => {
+    const client = await getClient();
+    try {
+      const queryText = `
+        SELECT 
+          e.*,
+          v.name,
+          v.city,
+          v.address,
+          v.capacity 
+        FROM events e
+        JOIN venues v ON e.venue_id = v.venue_id
+      `;
+      const result = await client.query(queryText);
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error("Error fetching all events with venues:", error);
+      next(error);
+    } finally {
+      client.release();
+    }
+  };
+  
+export const getAllOrganizers = async (req, res, next) => {
+    const client = await getClient();
+    try {
+        const queryText = `SELECT * FROM organizers`;
+        const result = await client.query(queryText);
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Error fetching all organizers:", error);
+        next(error);
+    } finally {
+        client.release();
+    }
+}
+
+  

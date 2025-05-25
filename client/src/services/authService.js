@@ -80,7 +80,7 @@ const authService = {
   logout,
   getCurrentUser,
   getStoredToken, 
-  storeToken, 
+  storeToken,
 };
 
 export default authService;

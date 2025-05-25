@@ -68,7 +68,7 @@ export const registerUser = async (req, res, next) => {
         const organizerQuery = `
           INSERT INTO organizers (account_id, display_name) 
           VALUES ($1, $2)
-          RETURNING display_name, bio, avg_rating, followers_count;
+          RETURNING display_name, bio, avg_rating, followers_count, avatar_url;
         `;
         const organizerResult = await client.query(organizerQuery, [newAccount.account_id, full_name]);
         userProfileSpecifics = { ...organizerResult.rows[0] };
@@ -93,6 +93,7 @@ export const registerUser = async (req, res, next) => {
             bio: userProfileSpecifics.bio,
             avg_rating: userProfileSpecifics.avg_rating,
             followers_count: userProfileSpecifics.followers_count,
+            avatar_url: userProfileSpecifics.avatar_url,
         }),
         ...(role === 'attendee' && {
             following_count: following_count,
@@ -162,7 +163,7 @@ export const loginUser = async (req, res, next) => {
             userProfile.full_name = "N/A";
         }
       } else if (role === 'organizer') {
-        const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count FROM organizers WHERE account_id = $1', [accountId]);
+        const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count, avatar_url FROM organizers WHERE account_id = $1', [accountId]);
         if (profileRes.rows.length > 0) {
             userProfile = { ...userProfile, ...profileRes.rows[0] };
             userProfile.full_name = profileRes.rows[0].display_name;
@@ -189,6 +190,7 @@ export const loginUser = async (req, res, next) => {
             bio: userProfile.bio,
             avg_rating: userProfile.avg_rating,
             followers_count: userProfile.followers_count,
+            avatar_url: userProfile.avatar_url,
         }),
       };
 
@@ -237,7 +239,7 @@ export const getCurrentUser = async (req, res, next) => {
                userProfile.full_name = "N/A";
           }
       } else if (role === 'organizer') {
-          const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count FROM organizers WHERE account_id = $1', [accountId]);
+          const profileRes = await query('SELECT display_name, bio, avg_rating, followers_count, avatar_url FROM organizers WHERE account_id = $1', [accountId]);
           if (profileRes.rows.length > 0) {
               userProfile = { ...userProfile, ...profileRes.rows[0] };
               userProfile.full_name = profileRes.rows[0].display_name;
@@ -262,6 +264,7 @@ export const getCurrentUser = async (req, res, next) => {
               bio: userProfile.bio,
               avg_rating: userProfile.avg_rating,
               followers_count: userProfile.followers_count,
+              avatar_url: userProfile.avatar_url,
           }),
       };
 

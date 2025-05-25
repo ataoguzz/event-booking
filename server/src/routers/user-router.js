@@ -2,7 +2,6 @@ import express from "express";
 import { getOrganizers, getFollowing, followOrganizer, unfollowOrganizer, getWalletInfo, getTransactions, topUpBalance, getFollowedEvents } from "../controllers/user-controller.js";
 import checkAuth from "../middleware/auth-check.js";
 
-
 export const userRouter = express.Router();
 
 userRouter.get("/organizers", getOrganizers);
