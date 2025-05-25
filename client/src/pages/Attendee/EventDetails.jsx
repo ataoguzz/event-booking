@@ -429,7 +429,7 @@ const EventDetails = () => {
                     </div>
                     <div className="flex-1">
                       <Link 
-                        to={`/organizer/${event.organizer.account_id || 'profile'}`}
+                        to={`/organizers/${event.organizer.account_id}`}
                         className="text-sm font-medium text-gray-900 hover:text-blue-600 block transition-colors"
                       >
                         {event.organizer.display_name}
