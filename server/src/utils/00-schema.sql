@@ -108,28 +108,36 @@ CREATE TABLE seats (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE TABLE venue_requests (
-    request_id BIGSERIAL PRIMARY KEY,
-    organizer_account_id BIGINT NOT NULL,
-    name TEXT NOT NULL,
-    city TEXT,
-    capacity TEXT,
-    notes TEXT,
-    status venue_request_status_enum DEFAULT 'PENDING',
-    admin_account_id BIGINT NULL,
-    decision_at TIMESTAMPTZ NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_organizer
-        FOREIGN KEY(organizer_account_id)
-        REFERENCES organizers(account_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_admin
-        FOREIGN KEY(admin_account_id)
-        REFERENCES admins(account_id)
-        ON DELETE SET NULL ON UPDATE CASCADE
-);
+-- In your 00-schema.sql, find and replace the CREATE TABLE venue_requests
 
+DROP TABLE IF EXISTS venue_requests; -- If it exists, to ensure clean slate with new columns
+CREATE TABLE venue_requests (
+                                request_id BIGSERIAL PRIMARY KEY,
+                                organizer_account_id BIGINT NOT NULL,
+                                name TEXT NOT NULL,                       -- Venue Name
+                                address TEXT NULL,                        -- Full address
+                                city TEXT,
+                                capacity TEXT,                            -- Organizer's estimated capacity (still TEXT)
+                                is_seated BOOLEAN NULL DEFAULT FALSE,     -- Is it a seated venue?
+                                requested_layout_rows INT NULL,           -- For seated: number of rows requested
+                                requested_layout_cols INT NULL,           -- For seated: number of seats per row requested
+                                notes TEXT,                               -- General notes about the venue or layout
+                                status venue_request_status_enum DEFAULT 'PENDING',
+                                admin_account_id BIGINT NULL,
+                                decision_at TIMESTAMPTZ NULL,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                                CONSTRAINT fk_organizer_venue_request -- Renamed constraint for clarity
+                                    FOREIGN KEY(organizer_account_id)
+                                        REFERENCES organizers(account_id)
+                                        ON DELETE RESTRICT ON UPDATE CASCADE,
+                                CONSTRAINT fk_admin_venue_request -- Renamed constraint
+                                    FOREIGN KEY(admin_account_id)
+                                        REFERENCES admins(account_id)
+                                        ON DELETE SET NULL ON UPDATE CASCADE
+);
+CREATE INDEX idx_venue_requests_organizer_id ON venue_requests(organizer_account_id);
+CREATE INDEX idx_venue_requests_status ON venue_requests(status);
 
 CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,

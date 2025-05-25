@@ -141,3 +141,90 @@ export const getVenueSeats = async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch venue seats', details: err.message });
     }
 };
+
+
+export const createVenueRequest = async (req, res, next) => {
+    const {
+        name,
+        address,
+        city,
+        capacity,
+        is_seated,
+        requested_layout_rows,
+        requested_layout_cols,
+        notes,
+        organizer_account_id // <<<< Expecting this directly from the request body
+    } = req.body;
+
+    // --- Validation for organizer_account_id from body ---
+    if (!organizer_account_id) {
+        console.error("Error in createVenueRequest: organizer_account_id is missing from the request body.");
+        return res.status(400).json({ message: "Organizer Account ID is required in the request body." });
+    }
+    const parsedOrganizerAccountId = parseInt(organizer_account_id, 10);
+    if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
+        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+    }
+
+    if (!name || !address || !city || !capacity) {
+        return res.status(400).json({ message: "Venue name, address, city, and estimated capacity are required." });
+    }
+
+    let parsedIsSeated = is_seated === true || String(is_seated).toLowerCase() === 'true';
+    let parsedRows = null;
+    let parsedCols = null;
+
+    if (parsedIsSeated) {
+        if (!requested_layout_rows || !requested_layout_cols) {
+            return res.status(400).json({ message: "For seated venues, layout rows and columns are required." });
+        }
+        parsedRows = parseInt(requested_layout_rows, 10);
+        parsedCols = parseInt(requested_layout_cols, 10);
+
+        if (isNaN(parsedRows) || parsedRows <= 0 || isNaN(parsedCols) || parsedCols <= 0) {
+            return res.status(400).json({ message: "Layout rows and columns must be positive numbers for seated venues." });
+        }
+    }
+
+    try {
+        const organizerCheckResult = await query('SELECT account_id FROM organizers WHERE account_id = $1', [parsedOrganizerAccountId]);
+        if (organizerCheckResult.rows.length === 0) {
+            return res.status(404).json({ message: `Organizer with ID ${parsedOrganizerAccountId} not found. Cannot create venue request.` });
+        }
+
+        const insertQuery = `
+            INSERT INTO venue_requests (
+                organizer_account_id, name, address, city, capacity, 
+                is_seated, requested_layout_rows, requested_layout_cols, notes,
+                status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING', NOW(), NOW())
+            RETURNING request_id, name, status, created_at;
+        `;
+        const values = [
+            parsedOrganizerAccountId,
+            name,
+            address,
+            city,
+            capacity,
+            parsedIsSeated,
+            parsedIsSeated ? parsedRows : null,
+            parsedIsSeated ? parsedCols : null,
+            notes
+        ];
+
+        const result = await query(insertQuery, values);
+
+        res.status(201).json({
+            message: "Venue request submitted successfully. An admin will review it shortly.",
+            venueRequest: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("Error creating venue request:", error);
+        if (error.code === '23503' && error.constraint === 'fk_organizer_venue_request') {
+            // This error specifically means the organizer_account_id provided does not exist in the organizers table
+            return res.status(400).json({message: `Invalid Organizer Account ID: ${parsedOrganizerAccountId} does not exist.`})
+        }
+        next(error);
+    }
+};

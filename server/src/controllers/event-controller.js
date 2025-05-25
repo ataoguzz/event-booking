@@ -1024,6 +1024,8 @@ export const updateEvent = async (req, res, next) => {
     if (!title || !description || !eventType || !startDate || !startTime || !endDate || !endTime || !venueIdStr || !ticketTiersDataString) {
         return res.status(400).json({ message: "Missing required fields for update." });
     }
+    let ticketTiers; try { ticketTiers = JSON.parse(ticketTiersDataString); /* + validation */ } catch (e) { /* error */ }
+    let startAtIso, endAtIso;
     try {
         startAtIso = new Date(`${startDate}T${startTime}`).toISOString();
         endAtIso = new Date(`${endDate}T${endTime}`).toISOString();

@@ -11,13 +11,15 @@ import { Textarea } from "@/components/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.jsx";
 import { Calendar } from "@/components/ui/calendar.jsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.jsx";
+import VenueRequestLayoutPreview from '@/components/VenueRequestLayoutPreview.jsx'; // Adjust path
 import {
     Dialog,
     DialogContent,
-    // DialogDescription, // Not used in your current JSX for venue request
+    DialogDescription, // Not used in your current JSX for venue request
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogFooter
 } from "@/components/ui/dialog.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
 import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash } from "lucide-react";
@@ -62,7 +64,16 @@ const CreateEvent = () => {
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [venues, setVenues] = useState([]);
-    const [venueRequest, setVenueRequest] = useState({name: "", address: "", capacity: "", description: ""});
+    const [venueRequest, setVenueRequest] = useState({
+        name: "",
+        address: "", // New
+        city: "",    // Already there in your old form state, ensure it's used
+        capacity: "", // Organizer's estimate
+        is_seated: false, // New
+        requested_layout_rows: '', // New
+        requested_layout_cols: '', // New
+        description: "", // This was 'notes' in your old form state, maps to 'notes' in DB
+    });
     const [seatAssignments, setSeatAssignments] = useState({}); // For seated venues
 
     // ... (useEffect for fetchVenues remains the same) ...
@@ -113,13 +124,13 @@ const CreateEvent = () => {
 
     const handleTierChange = (id, field, value) => { /* ... same as before ... */
         const oldTier = ticketTiers.find(tier => tier.id === id);
-        
+
         setTicketTiers(prevTiers =>
             prevTiers.map(tier =>
                 tier.id === id ? { ...tier, [field]: value } : tier
             )
         );
-        
+
         // Update seat assignments if tier name changed
         if (field === 'tierName' && oldTier && oldTier.tierName !== value) {
             const newSeatAssignments = { ...seatAssignments };
@@ -130,7 +141,7 @@ const CreateEvent = () => {
             });
             setSeatAssignments(newSeatAssignments);
         }
-        
+
         if (errors.ticketTiers && errors.ticketTiers[id] && errors.ticketTiers[id][field]) {
             setErrors(prev => ({
                 ...prev,
@@ -155,7 +166,7 @@ const CreateEvent = () => {
         if (ticketTiers.length > 1) {
             const tierToRemove = ticketTiers.find(tier => tier.id === idToRemove);
             setTicketTiers(ticketTiers.filter(tier => tier.id !== idToRemove));
-            
+
             // Clean up seat assignments that reference the removed tier
             if (tierToRemove) {
                 const newSeatAssignments = { ...seatAssignments };
@@ -197,7 +208,6 @@ const CreateEvent = () => {
         }));
     };
 
-    const handleVenueRequest = async () => { /* ... */ };
 
     const validateForm = () => {
         const newErrors = {};
@@ -280,6 +290,66 @@ const CreateEvent = () => {
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
+    };
+
+    const validateVenueRequest = () => {
+        const newVRErrors = {};
+        if (!venueRequest.name.trim()) newVRErrors.name = "Venue name is required.";
+        if (!venueRequest.address.trim()) newVRErrors.address = "Address is required.";
+        if (!venueRequest.city.trim()) newVRErrors.city = "City is required.";
+        if (!venueRequest.capacity.trim()) newVRErrors.capacity = "Estimated capacity is required."; // Capacity is TEXT in DB, so simple trim check
+
+        if (venueRequest.is_seated) {
+            if (!venueRequest.requested_layout_rows || parseInt(venueRequest.requested_layout_rows, 10) <= 0) {
+                newVRErrors.requested_layout_rows = "Number of rows must be a positive integer for seated venues.";
+            }
+            if (!venueRequest.requested_layout_cols || parseInt(venueRequest.requested_layout_cols, 10) <= 0) {
+                newVRErrors.requested_layout_cols = "Number of seats per row must be a positive integer for seated venues.";
+            }
+        }
+        setErrors(prev => ({ ...prev, venueRequest: newVRErrors }));
+        return Object.keys(newVRErrors).length === 0;
+    };
+
+    const submitVenueRequest = async () => {
+        if (!validateVenueRequest()) {
+            setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: "Please correct the errors above." }}));
+            return;
+        }
+
+        setIsSubmitting(true);
+        setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: null }}));
+
+        const payload = {
+            name: venueRequest.name,
+            address: venueRequest.address,
+            city: venueRequest.city,
+            capacity: venueRequest.capacity, // Will be sent as text
+            is_seated: venueRequest.is_seated,
+            notes: venueRequest.description, // Map description field to notes
+            organizer_account_id: user.account_id, // Assuming user.account_id is the organizer's account id
+        };
+
+        if (venueRequest.is_seated) {
+            payload.requested_layout_rows = parseInt(venueRequest.requested_layout_rows, 10);
+            payload.requested_layout_cols = parseInt(venueRequest.requested_layout_cols, 10);
+        }
+
+        try {
+            console.log(payload);
+            await apiClient.post("/venue/request", payload);
+            alert("Venue request submitted successfully! An admin will review it shortly.");
+            setIsVenueDialogOpen(false);
+            setVenueRequest({name: "", address: "", city: "", capacity: "", is_seated: false, requested_layout_rows: '', requested_layout_cols: '', description: ""});
+
+            navigate('/my-events');
+        } catch (error) {
+            console.error("Error submitting venue request:", error);
+            setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: error.data?.message || "Failed to submit venue request." }}));
+            alert(error.data?.message || "There was an issue submitting your venue request. Please try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleSubmit = async (e) => { /* ... same as before, it correctly strips the 'id' from tiers ... */
@@ -445,6 +515,106 @@ const CreateEvent = () => {
                             <Alert><MapPin className="h-4 w-4" /><AlertDescription> Can't find your venue?{" "} <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}><DialogTrigger asChild><Button variant="link" className="p-0 h-auto"> Request a new venue </Button></DialogTrigger><DialogContent> {/* ... Venue Request Dialog ... */} </DialogContent></Dialog> </AlertDescription></Alert>
                         </CardContent>
                     </Card>
+
+                    <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="link" className="p-0 h-auto"> Request a new venue </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] flex flex-col"> {/* Max width and height, flex col */}
+                            <DialogHeader>
+                                <DialogTitle>Request New Venue</DialogTitle>
+                                <DialogDescription>
+                                    Fill in the details for the venue you'd like to request. An admin will review it.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {/* Scrollable content area */}
+                            <div className="grid gap-4 py-4 overflow-y-auto px-1"> {/* Added overflow-y-auto and some padding */}
+                                {/* Name */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-name" className="text-right">Name *</Label>
+                                    <Input id="vr-name" value={venueRequest.name} onChange={(e) => setVenueRequest(prev => ({ ...prev, name: e.target.value }))} className="col-span-3" placeholder="Venue Name" />
+                                </div>
+                                {errors.venueRequest?.name && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.name}</p>}
+
+                                {/* Address */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-address" className="text-right">Address *</Label>
+                                    <Input id="vr-address" value={venueRequest.address} onChange={(e) => setVenueRequest(prev => ({ ...prev, address: e.target.value }))} className="col-span-3" placeholder="Full Street Address" />
+                                </div>
+                                {errors.venueRequest?.address && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.address}</p>}
+
+                                {/* City */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-city" className="text-right">City *</Label>
+                                    <Input id="vr-city" value={venueRequest.city} onChange={(e) => setVenueRequest(prev => ({ ...prev, city: e.target.value }))} className="col-span-3" placeholder="City" />
+                                </div>
+                                {errors.venueRequest?.city && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.city}</p>}
+
+                                {/* Est. Capacity */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-capacity" className="text-right">Est. Capacity *</Label>
+                                    <Input id="vr-capacity" type="text" value={venueRequest.capacity} onChange={(e) => setVenueRequest(prev => ({ ...prev, capacity: e.target.value }))} className="col-span-3" placeholder="e.g., 500 or 500-700" />
+                                </div>
+                                {errors.venueRequest?.capacity && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.capacity}</p>}
+
+                                {/* Seating Type Checkbox */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-is_seated" className="text-right">Seating Type</Label>
+                                    <div className="col-span-3 flex items-center space-x-2">
+                                        <input type="checkbox" id="vr-is_seated" checked={venueRequest.is_seated} onChange={(e) => setVenueRequest(prev => ({ ...prev, is_seated: e.target.checked, requested_layout_rows: e.target.checked ? prev.requested_layout_rows : '', requested_layout_cols: e.target.checked ? prev.requested_layout_cols : ''}))} />
+                                        <Label htmlFor="vr-is_seated">This is a seated venue</Label>
+                                    </div>
+                                </div>
+
+                                {/* Conditional Section for Seated Venue Layout */}
+                                {venueRequest.is_seated && (
+                                    <div className="col-span-4 space-y-4 border-t pt-4 mt-2"> {/* Group seated venue inputs */}
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="vr-rows" className="text-right">Layout Rows *</Label>
+                                            <Input id="vr-rows" type="number" value={venueRequest.requested_layout_rows}
+                                                   onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_rows: e.target.value }))} // Keep as string for input, parse later
+                                                   className="col-span-3" placeholder="e.g., 10" min="1"/>
+                                        </div>
+                                        {errors.venueRequest?.requested_layout_rows && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.requested_layout_rows}</p>}
+
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="vr-cols" className="text-right">Seats per Row *</Label>
+                                            <Input id="vr-cols" type="number" value={venueRequest.requested_layout_cols}
+                                                   onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_cols: e.target.value }))} // Keep as string
+                                                   className="col-span-3" placeholder="e.g., 20" min="1"/>
+                                        </div>
+                                        {errors.venueRequest?.requested_layout_cols && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.requested_layout_cols}</p>}
+
+                                        {/* Render the preview if dimensions are valid numbers > 0 */}
+                                        {(parseInt(venueRequest.requested_layout_rows, 10) > 0 && parseInt(venueRequest.requested_layout_cols, 10) > 0) && (
+                                            <div className="col-span-4 mt-2"> {/* Ensure this div doesn't cause unnecessary expansion */}
+                                                <VenueRequestLayoutPreview
+                                                    rows={parseInt(venueRequest.requested_layout_rows, 10)}
+                                                    cols={parseInt(venueRequest.requested_layout_cols, 10)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Notes */}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="vr-description" className="text-right">Notes</Label>
+                                    <Textarea id="vr-description" value={venueRequest.description} onChange={(e) => setVenueRequest(prev => ({ ...prev, description: e.target.value }))} className="col-span-3" placeholder="Any additional details or notes..." />
+                                </div>
+                                {errors.venueRequest?.form && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.form}</p>}
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsVenueDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
+                                <Button onClick={submitVenueRequest} disabled={isSubmitting}>
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Submit Request
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
 
                     {/* Ticket Tiers Pricing Card */}
                     <Card>

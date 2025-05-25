@@ -81,7 +81,7 @@ export default function MyEvents() {
         capacity: event.venue_capacity || 0,
         soldTickets: event.tickets_sold || 0,
         status: event.status ? event.status.toLowerCase() : 'unknown',
-        image: event.hero_image_url || 'https://via.placeholder.com/300x200?text=No+Image',
+        image: event.hero_image_url,
         _original: event
       }));
       setAllFetchedEvents(transformedEvents);
