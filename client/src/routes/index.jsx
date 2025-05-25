@@ -8,6 +8,8 @@ const Home = React.lazy(() => import("../pages/Home/Index.jsx"));
 const AttendeeHomepage = React.lazy(() => import("../pages/Home/AttendeeHomepage.jsx"));
 const OrganizerHome = React.lazy(() => import("../pages/Home/OrganizerHomepage.jsx"));
 const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx"));
+const SearchPage = React.lazy(() => import("../pages/Events/SearchPage.jsx"));
+const EventDetails = React.lazy(() => import("../pages/Events/EventDetails.jsx"));
 
 const loading = () => <div className=""></div>;
 
@@ -18,7 +20,8 @@ const LoadComponent = ({ component }) => (
 );
 
 const AllRoutes = () => {
-    //const {user} = useAuth();
+    const { user } = useAuth();
+    
     return useRoutes([
         {
             path: "/",
@@ -29,6 +32,14 @@ const AllRoutes = () => {
             children:[
                 {path: "login", element: <LoadComponent component={Login} />},
                 {path: "signup", element: <LoadComponent component={Signup} />}
+            ]
+        },
+        {
+            path: "/events",
+            children: [
+                { path: "", element: <Navigate to="/events/search" /> },
+                { path: "search", element: <LoadComponent component={SearchPage} /> },
+                { path: ":id", element: <LoadComponent component={EventDetails} /> }
             ]
         },
         {

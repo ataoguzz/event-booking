@@ -7,6 +7,7 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm install
+RUN npm install @radix-ui/react-icons date-fns @radix-ui/react-slider @radix-ui/react-popover @radix-ui/react-select
 
 # Copy the rest of the application
 COPY . .
@@ -15,4 +16,4 @@ COPY . .
 EXPOSE 3000
 
 # Start the development server with host flag to allow external access
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"] 
+CMD ["npm", "run", "dev"] 
