@@ -21,6 +21,12 @@ axiosInstance.interceptors.request.use(
         if (token) {
             config.headers["Authorization"] = "Bearer " + token;
         }
+        
+        // If we're sending FormData, let the browser set the Content-Type
+        if (config.data instanceof FormData) {
+            delete config.headers["Content-Type"];
+        }
+        
         return config;
     },
     error => {
@@ -45,8 +51,7 @@ axiosInstance.interceptors.response.use(
             switch (status) {
                 case 401:
                     customError.message = data?.message || "Authentication failed. Please check your credentials or token.";
-                    // Clear expired/invalid token
-                    localStorage.removeItem(AUTH_SESSION_KEY);
+                    // Don't clear token here - let authService handle it properly
                     break;
                 case 403:
                     customError.message = data?.message || "Access Forbidden: You do not have permission to access this resource.";
@@ -81,6 +86,17 @@ class apiClient {
 
     delete = (url, config = {}) => {
         return axiosInstance.delete(url, config);
+    };
+
+    downloadFile = (url, config = {}) => {
+        return axiosInstance.get(url, {
+            ...config,
+            responseType: 'blob',
+            headers: {
+                ...config.headers,
+                'Accept': 'application/pdf,application/octet-stream'
+            }
+        });
     };
 
     storeToken = (token) => {
