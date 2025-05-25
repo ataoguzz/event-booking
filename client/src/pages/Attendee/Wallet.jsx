@@ -1,115 +1,111 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Input } from '@/components/ui/input.jsx';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Separator } from '@/components/ui/separator.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.jsx';
-import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownLeft, Calendar, CreditCard, DollarSign, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
+import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownLeft, Calendar, CreditCard, DollarSign, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import CreditCardForm from '@/components/ui/CreditCardForm.jsx';
+import apiClient from '@/helpers/apiCore.js';
 
 export default function Wallet() {
-  const [balance, setBalance] = useState(245.67);
+  const [walletInfo, setWalletInfo] = useState({
+    balance: 0,
+    monthly_spent: 0,
+    monthly_added: 0,
+    total_transactions: 0
+  });
+  const [transactions, setTransactions] = useState([]);
   const [loadAmount, setLoadAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
   const [isLoadingMoney, setIsLoadingMoney] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [filterBy, setFilterBy] = useState('all');
+  const [showCreditCardForm, setShowCreditCardForm] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Mock transaction data - would come from API in real app
-  const transactions = [
-    {
-      id: 1,
-      type: 'expense',
-      description: 'Summer Music Festival Ticket',
-      amount: -75.00,
-      date: '2023-07-10',
-      time: '14:30',
-      status: 'completed',
-      eventId: 1
-    },
-    {
-      id: 2,
-      type: 'deposit',
-      description: 'Wallet Top-up',
-      amount: 100.00,
-      date: '2023-07-08',
-      time: '10:15',
-      status: 'completed',
-      paymentMethod: 'Credit Card'
-    },
-    {
-      id: 3,
-      type: 'expense',
-      description: 'Tech Conference 2023 Ticket',
-      amount: -250.00,
-      date: '2023-07-05',
-      time: '09:45',
-      status: 'completed',
-      eventId: 2
-    },
-    {
-      id: 4,
-      type: 'refund',
-      description: 'Comedy Night Refund',
-      amount: 35.00,
-      date: '2023-07-03',
-      time: '16:20',
-      status: 'completed',
-      eventId: 3
-    },
-    {
-      id: 5,
-      type: 'deposit',
-      description: 'Wallet Top-up',
-      amount: 200.00,
-      date: '2023-07-01',
-      time: '12:00',
-      status: 'completed',
-      paymentMethod: 'Bank Transfer'
-    },
-    {
-      id: 6,
-      type: 'expense',
-      description: 'Art Exhibition Ticket',
-      amount: -20.00,
-      date: '2023-06-28',
-      time: '11:30',
-      status: 'pending',
-      eventId: 4
-    },
-    {
-      id: 7,
-      type: 'expense',
-      description: 'Jazz in the Garden Ticket',
-      amount: -45.00,
-      date: '2023-06-25',
-      time: '19:15',
-      status: 'completed',
-      eventId: 5
+  // Fetch wallet info and transactions on component mount
+  useEffect(() => {
+    fetchWalletData();
+  }, []);
+
+  // Fetch transactions when filter changes
+  useEffect(() => {
+    fetchTransactions();
+  }, [filterBy]);
+
+  const fetchWalletData = async () => {
+    try {
+      setIsLoadingData(true);
+      setError(null);
+
+      // Fetch wallet info
+      const walletResponse = await apiClient.get('/users/wallet');
+      setWalletInfo(walletResponse.data);
+
+      // Fetch transactions
+      await fetchTransactions();
+
+    } catch (err) {
+      console.error('Error fetching wallet data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoadingData(false);
     }
-  ];
-
-  const handleLoadMoney = async () => {
-    if (!loadAmount || parseFloat(loadAmount) <= 0) return;
-    
-    setIsLoadingMoney(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setBalance(prev => prev + parseFloat(loadAmount));
-      setLoadAmount('');
-      setIsLoadingMoney(false);
-    }, 2000);
   };
 
-  const filteredTransactions = transactions.filter(transaction => {
-    if (filterBy === 'all') return true;
-    if (filterBy === 'deposits') return transaction.type === 'deposit' || transaction.type === 'refund';
-    if (filterBy === 'expenses') return transaction.type === 'expense';
-    if (filterBy === 'pending') return transaction.status === 'pending';
-    return true;
-  });
+  const fetchTransactions = async () => {
+    try {
+      const response = await apiClient.get('/users/wallet/transactions', { filter: filterBy });
+      setTransactions(response.data);
+
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleLoadMoney = () => {
+    if (!loadAmount || parseFloat(loadAmount) <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+    setShowCreditCardForm(true);
+  };
+
+  const handleCreditCardSubmit = async (cardData) => {
+    try {
+      setIsLoadingMoney(true);
+      setError(null);
+      
+      const response = await apiClient.post('/users/wallet/topup', {
+        amount: parseFloat(loadAmount),
+        card_data: cardData
+      });
+
+      // Update wallet info with new balance
+      setWalletInfo(prev => ({
+        ...prev,
+        balance: response.data.new_balance,
+        monthly_added: prev.monthly_added + response.data.amount
+      }));
+
+      // Reset form and close modal
+      setLoadAmount('');
+      setShowCreditCardForm(false);
+      
+      // Refresh transactions
+      await fetchTransactions();
+
+    } catch (err) {
+      console.error('Error processing top-up:', err);
+      setError(err.message);
+    } finally {
+      setIsLoadingMoney(false);
+    }
+  };
 
   const getTransactionIcon = (type) => {
     switch (type) {
@@ -143,12 +139,29 @@ export default function Wallet() {
     }
   };
 
+  if (isLoadingData) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto py-8 px-4">
+          <div className="flex items-center justify-center min-h-96">
+            <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto py-8 px-4">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">My Wallet</h1>
           <p className="text-muted-foreground mt-1">Manage your balance and view transaction history</p>
+          {error && (
+            <div className="mt-2 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
         </div>
 
         {/* Balance Card and Quick Actions */}
@@ -163,20 +176,20 @@ export default function Wallet() {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-foreground mb-4">
-                ${balance.toFixed(2)}
+                ${walletInfo.balance.toFixed(2)}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">This Month Spent</p>
-                  <p className="font-semibold text-red-600">-$390.00</p>
+                  <p className="font-semibold text-red-600">-${walletInfo.monthly_spent.toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">This Month Added</p>
-                  <p className="font-semibold text-green-600">+$300.00</p>
+                  <p className="font-semibold text-green-600">+${walletInfo.monthly_added.toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total Transactions</p>
-                  <p className="font-semibold">{transactions.length}</p>
+                  <p className="font-semibold">{walletInfo.total_transactions}</p>
                 </div>
               </div>
             </CardContent>
@@ -190,7 +203,7 @@ export default function Wallet() {
                 Add Money
               </CardTitle>
               <CardDescription>
-                Top up your wallet instantly
+                Top up your wallet with credit card
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -203,21 +216,6 @@ export default function Wallet() {
                   onChange={(e) => setLoadAmount(e.target.value)}
                   className="text-lg"
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Payment Method</label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <CreditCard size={16} className="mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="card">Credit/Debit Card</SelectItem>
-                    <SelectItem value="bank">Bank Transfer</SelectItem>
-                    <SelectItem value="paypal">PayPal</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="flex gap-2">
@@ -234,13 +232,31 @@ export default function Wallet() {
                 ))}
               </div>
 
-              <Button 
-                className="w-full" 
-                onClick={handleLoadMoney}
-                disabled={!loadAmount || parseFloat(loadAmount) <= 0 || isLoadingMoney}
-              >
-                {isLoadingMoney ? 'Processing...' : `Add $${loadAmount || '0'}`}
-              </Button>
+              <Dialog open={showCreditCardForm} onOpenChange={setShowCreditCardForm}>
+                <DialogTrigger asChild>
+                  <Button 
+                    className="w-full" 
+                    onClick={handleLoadMoney}
+                    disabled={!loadAmount || parseFloat(loadAmount) <= 0}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Add ${loadAmount || '0'}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add Money to Wallet</DialogTitle>
+                    <DialogDescription>
+                      Complete your payment to add funds to your wallet
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreditCardForm
+                    amount={loadAmount}
+                    onSubmit={handleCreditCardSubmit}
+                    isLoading={isLoadingMoney}
+                  />
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </div>
@@ -254,21 +270,25 @@ export default function Wallet() {
                 <CardDescription>View all your wallet transactions</CardDescription>
               </div>
               
-              <Select value={filterBy} onValueChange={setFilterBy}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter transactions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Transactions</SelectItem>
-                  <SelectItem value="deposits">Deposits & Refunds</SelectItem>
-                  <SelectItem value="expenses">Expenses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={filterBy} onValueChange={setFilterBy}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Filter transactions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Transactions</SelectItem>
+                    <SelectItem value="deposits">Deposits & Refunds</SelectItem>
+                    <SelectItem value="expenses">Expenses</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={fetchWalletData}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            {filteredTransactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <div className="text-center py-16">
                 <WalletIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
@@ -276,7 +296,7 @@ export default function Wallet() {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredTransactions.map((transaction, index) => (
+                {transactions.map((transaction, index) => (
                   <div key={transaction.id}>
                     <div className="flex items-center justify-between py-3">
                       <div className="flex items-center space-x-3">
@@ -307,13 +327,10 @@ export default function Wallet() {
                           <div className={`text-sm font-medium ${getTransactionColor(transaction.type, transaction.amount)}`}>
                             {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                           </div>
-                          {transaction.paymentMethod && (
-                            <div className="text-xs text-gray-500">{transaction.paymentMethod}</div>
-                          )}
                         </div>
                       </div>
                     </div>
-                    {index < filteredTransactions.length - 1 && <Separator />}
+                    {index < transactions.length - 1 && <Separator />}
                   </div>
                 ))}
               </div>

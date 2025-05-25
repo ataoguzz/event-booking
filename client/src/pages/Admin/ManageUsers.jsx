@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import apiClient from '../../helpers/apiCore';
+import React, { useState } from 'react';
 import Layout from '@/components/Layout.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
@@ -14,47 +13,139 @@ import { Label } from '@/components/ui/label.jsx';
 import { Search, Edit, Trash2, Eye, Ban, ShieldAlert, User, Mail, Calendar, LayoutDashboard } from 'lucide-react';
 
 export default function ManageUsers() {
-  const [users, setUsers] = useState([]);
-  const [attendeeCount, setAttendeeCount] = useState(0);
-  const [organizerCount, setOrganizerCount] = useState(0);
-  const [adminCount, setAdminCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBanDialog, setShowBanDialog] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [newRole, setNewRole] = useState('');
-  const [selectedTab, setSelectedTab] = useState('all');
-
   
-  useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        const response = await apiClient.get('/admin/getAllAccounts');
-        // axios automatically throws for HTTP errors by default, but if not:
-        if (response.status !== 200) {
-          throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
-        }
-        const data = response.data; // the parsed JSON body
-        console.log('Accounts:', data);
-        setUsers(data.users);
+  // Mock data
+  const users = [
+    {
+      id: 'U1001',
+      name: 'John Smith',
+      email: 'john.smith@example.com',
+      role: 'attendee',
+      status: 'active',
+      verified: true,
+      registrationDate: '2022-03-15',
+      lastLogin: '2023-06-20',
+      ticketsPurchased: 12,
+      avatar: '/avatars/avatar-1.png'
+    },
+    {
+      id: 'U1042',
+      name: 'Sarah Johnson',
+      email: 'sarah.j@example.com',
+      role: 'organizer',
+      status: 'active',
+      verified: true,
+      registrationDate: '2022-01-08',
+      lastLogin: '2023-06-18',
+      eventsCreated: 8,
+      avatar: '/avatars/avatar-2.png'
+    },
+    {
+      id: 'U1078',
+      name: 'Michael Chen',
+      email: 'michael.c@example.com',
+      role: 'attendee',
+      status: 'active',
+      verified: true,
+      registrationDate: '2022-05-22',
+      lastLogin: '2023-06-15',
+      ticketsPurchased: 5,
+      avatar: '/avatars/avatar-3.png'
+    },
+    {
+      id: 'U1103',
+      name: 'Amanda Wilson',
+      email: 'amanda.w@example.com',
+      role: 'organizer',
+      status: 'active',
+      verified: true,
+      registrationDate: '2021-11-30',
+      lastLogin: '2023-06-19',
+      eventsCreated: 15,
+      avatar: '/avatars/avatar-4.png'
+    },
+    {
+      id: 'U1150',
+      name: 'David Martinez',
+      email: 'david.m@example.com',
+      role: 'admin',
+      status: 'active',
+      verified: true,
+      registrationDate: '2021-08-12',
+      lastLogin: '2023-06-20',
+      avatar: '/avatars/avatar-5.png'
+    },
+    {
+      id: 'U1189',
+      name: 'Jessica Taylor',
+      email: 'jessica.t@example.com',
+      role: 'attendee',
+      status: 'suspended',
+      verified: true,
+      registrationDate: '2022-07-18',
+      lastLogin: '2023-05-25',
+      ticketsPurchased: 3,
+      suspensionReason: 'Multiple reports from event organizers',
+      avatar: '/avatars/avatar-6.png'
+    },
+    {
+      id: 'U1210',
+      name: 'Robert Brown',
+      email: 'robert.b@example.com',
+      role: 'organizer',
+      status: 'pending',
+      verified: false,
+      registrationDate: '2023-06-05',
+      lastLogin: '2023-06-05',
+      eventsCreated: 0,
+      avatar: '/avatars/avatar-7.png'
+    },
+    {
+      id: 'U1245',
+      name: 'Emily Clark',
+      email: 'emily.c@example.com',
+      role: 'attendee',
+      status: 'active',
+      verified: true,
+      registrationDate: '2022-09-10',
+      lastLogin: '2023-06-17',
+      ticketsPurchased: 8,
+      avatar: '/avatars/avatar-8.png'
+    }
+  ];
 
-        setAttendeeCount(data.counts.attendeeCount);
-        setOrganizerCount(data.counts.organizerCount);
-        setAdminCount(data.counts.adminCount);
-      } catch (error) {
-        console.error('Error fetching events:', error);
-      }
-    };
-    fetchAccounts();
-  }, []);
-  
+  // Filter users based on search term and filters
   const filteredUsers = users.filter(user => {
-    if (selectedTab === 'all') return true;
-    if (selectedTab === 'attendees') return user.role === 'attendee';
-    if (selectedTab === 'organizers') return user.role === 'organizer';
-    if (selectedTab === 'admins') return user.role === 'admin';
-    return true;
+    const matchesSearch = 
+      searchTerm === '' || 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesRole = roleFilter === 'all' || roleFilter === '' || user.role === roleFilter;
+    const matchesStatus = statusFilter === 'all' || statusFilter === '' || user.status === statusFilter;
+    
+    return matchesSearch && matchesRole && matchesStatus;
   });
+
+  const attendeeCount = users.filter(user => user.role === 'attendee').length;
+  const organizerCount = users.filter(user => user.role === 'organizer').length;
+  const adminCount = users.filter(user => user.role === 'admin').length;
+  
+  const handleDeleteUser = (userId) => {
+    // API call 
+    console.log(`Delete user ${userId}`);
+    setShowDeleteDialog(false);
+  };
+  
   const handleToggleUserStatus = (userId, currentStatus) => {
     // API call
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
@@ -103,12 +194,18 @@ export default function ManageUsers() {
             <p className="text-muted-foreground mt-1">View, edit and manage platform users</p>
           </div>
           
+          <div className="flex items-center gap-3">
+            <Button variant="outline">
+              Export Users
+            </Button>
+            <Button variant="default">
+              Add New User
+            </Button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
-        <Tabs value={selectedTab} 
-          onValueChange={setSelectedTab} 
-          className="mb-6" >
+        <Tabs defaultValue="all" className="mb-6">
           <TabsList>
             <TabsTrigger value="all">
               All Users
@@ -129,12 +226,71 @@ export default function ManageUsers() {
           </TabsList>
         </Tabs>
 
-        
+        {/* Filters Section */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div className="md:col-span-5">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input 
+                type="search" 
+                placeholder="Search by name, email or ID..." 
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div className="md:col-span-3">
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="organizer">Organizer</SelectItem>
+                <SelectItem value="attendee">Attendee</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="md:col-span-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="md:col-span-1">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => {
+                setSearchTerm('');
+                setRoleFilter('');
+                setStatusFilter('');
+              }}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
 
         {/* Users Table */}
         <Card>
           <CardHeader>
             <CardTitle>Users</CardTitle>
+            <CardDescription>
+              Showing {filteredUsers.length} of {users.length} users
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -144,33 +300,81 @@ export default function ManageUsers() {
                     <th className="text-left px-4 py-3 text-sm font-medium">User</th>
                     <th className="text-left px-4 py-3 text-sm font-medium">Email</th>
                     <th className="text-left px-4 py-3 text-sm font-medium">Role</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium">Creation Date</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Registration Date</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Last Login</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.account_id} className="border-b hover:bg-muted/50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar} alt={user.full_name} />
-                          <AvatarFallback>{user.full_name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{user.full_name}</div>
-                          <div className="text-xs text-muted-foreground">{user.account_id}</div>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="border-b hover:bg-muted/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user.avatar} alt={user.name} />
+                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{user.name}</div>
+                            <div className="text-xs text-muted-foreground">{user.id}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{user.email}</td>
-                    <td className="px-4 py-3 text-sm">{getRoleBadge(user.role)}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(user.created_at).toLocaleDateString()}</td>
-                    {/* Remove or replace lastLogin if you don't have it */}
-                    {/* <td className="px-4 py-3 text-sm">{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : '—'}</td> */}
-                    
-                  </tr>
-                ))}
-
+                      </td>
+                      <td className="px-4 py-3 text-sm">{user.email}</td>
+                      <td className="px-4 py-3 text-sm">{getRoleBadge(user.role)}</td>
+                      <td className="px-4 py-3 text-sm">{getStatusBadge(user.status)}</td>
+                      <td className="px-4 py-3 text-sm">{new Date(user.registrationDate).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm">{new Date(user.lastLogin).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm text-right space-x-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            // View user details
+                            setSelectedUser(user);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewRole(user.role);
+                            setShowRoleDialog(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className={`h-8 w-8 p-0 ${user.status === 'suspended' ? 'text-green-500' : 'text-yellow-500'}`}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowBanDialog(true);
+                          }}
+                        >
+                          <Ban className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-destructive"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowDeleteDialog(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

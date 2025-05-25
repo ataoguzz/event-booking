@@ -1,241 +1,111 @@
-import { query, getClient } from "../utils/db.js";
-import { validationResult } from "express-validator";
+import { query, getClient } from '../utils/db.js';
 
-// Create a new promo code
-export const createPromoCode = async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
-        }
-
-        const { 
-            event_id, 
-            code, 
-            discount_type, 
-            discount_value, 
-            usage_limit,
-            start_date,
-            end_date 
-        } = req.body;
-
-        // Validate discount value based on type
-        if (discount_type === 'PERCENT' && (discount_value <= 0 || discount_value > 100)) {
-            return res.status(400).json({ message: "Percentage discount must be between 0 and 100" });
-        }
-        if (discount_type === 'FIXED' && discount_value <= 0) {
-            return res.status(400).json({ message: "Fixed discount must be greater than 0" });
-        }
-
-        // Check if code already exists
-        const existingCode = await query(
-            'SELECT code FROM promo_codes WHERE code = $1',
-            [code]
-        );
-
-        if (existingCode.rows.length > 0) {
-            return res.status(400).json({ message: "Promo code already exists" });
-        }
-
-        // Create new promo code
-        const result = await query(
-            `INSERT INTO promo_codes 
-            (event_id, code, discount_type, discount_value, usage_limit, start_date, end_date)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING *`,
-            [event_id, code, discount_type, discount_value, usage_limit, start_date, end_date]
-        );
-
-        res.status(201).json(result.rows[0]);
-    } catch (error) {
-        console.error('Error creating promo code:', error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
-
-// Get all promo codes for an event
-export const getEventPromoCodes = async (req, res) => {
-    try {
-        const { event_id } = req.params;
-        
-        const result = await query(
-            `SELECT * FROM promo_codes 
-            WHERE event_id = $1 
-            ORDER BY created_at DESC`,
-            [event_id]
-        );
-
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching promo codes:', error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
-
-// Validate and apply promo code
 export const validatePromoCode = async (req, res) => {
     try {
-        const { code, event_id } = req.body;
-        const user_id = req.user.id; // Assuming user is authenticated
+        const { code, eventId } = req.body;
+        const { accountId } = req.user;
 
-        const promoCode = await query(
-            `SELECT * FROM promo_codes 
-            WHERE code = $1 
-            AND event_id = $2 
-            AND is_active = true
-            AND (usage_count < usage_limit)
-            AND (start_date IS NULL OR start_date <= CURRENT_DATE)
-            AND (end_date IS NULL OR end_date >= CURRENT_DATE)`,
-            [code, event_id]
-        );
-
-        if (promoCode.rows.length === 0) {
-            return res.status(404).json({ message: "Invalid or expired promo code" });
+        if (!code || !eventId) {
+            return res.status(400).json({ error: 'Promo code and event ID are required' });
         }
 
-        // Check if user has already used this code
-        const existingRedemption = await query(
-            `SELECT * FROM promo_redemptions 
-            WHERE promo_code_id = $1 
-            AND account_id = $2`,
-            [promoCode.rows[0].promo_code_id, user_id]
-        );
+        const eventIdInt = parseInt(eventId);
 
-        if (existingRedemption.rows.length > 0) {
-            return res.status(400).json({ message: "You have already used this promo code" });
+        const promoQuery = `
+            SELECT 
+                pc.promo_code_id,
+                pc.code,
+                pc.discount_type,
+                pc.discount_value,
+                pc.usage_limit,
+                pc.usage_count,
+                pc.start_date,
+                pc.end_date,
+                pc.is_active,
+                pc.event_id
+            FROM promo_codes pc
+            WHERE pc.code = $1 
+            AND pc.is_active = TRUE
+            AND (pc.event_id IS NULL OR pc.event_id = $2)
+        `;
+
+        const { rows: promoRows } = await query(promoQuery, [code, eventIdInt]);
+
+        if (promoRows.length === 0) {
+            return res.status(404).json({ error: 'Invalid promo code' });
+        }
+
+        const promo = promoRows[0];
+
+        const currentDate = new Date().toISOString().split('T')[0];
+        if (promo.start_date && currentDate < promo.start_date) {
+            return res.status(400).json({ error: 'Promo code is not yet active' });
+        }
+        if (promo.end_date && currentDate > promo.end_date) {
+            return res.status(400).json({ error: 'Promo code has expired' });
+        }
+
+        if (promo.usage_limit && promo.usage_count >= promo.usage_limit) {
+            return res.status(400).json({ error: 'Promo code usage limit reached' });
+        }
+
+        const redemptionQuery = `
+            SELECT redemption_id 
+            FROM promo_redemptions 
+            WHERE promo_code_id = $1 AND account_id = $2
+        `;
+        const { rows: redemptionRows } = await query(redemptionQuery, [promo.promo_code_id, accountId]);
+
+        if (redemptionRows.length > 0) {
+            return res.status(400).json({ error: 'You have already used this promo code' });
         }
 
         res.json({
             valid: true,
-            discount_type: promoCode.rows[0].discount_type,
-            discount_value: promoCode.rows[0].discount_value
+            promo_code_id: promo.promo_code_id,
+            code: promo.code,
+            discount_type: promo.discount_type,
+            discount_value: parseFloat(promo.discount_value),
+            description: promo.discount_type === 'PERCENT' 
+                ? `${promo.discount_value}% off`
+                : `$${promo.discount_value} off`
         });
-    } catch (error) {
-        console.error('Error validating promo code:', error);
-        res.status(500).json({ message: "Internal server error" });
+
+    } catch (err) {
+        console.error('Error validating promo code:', err);
+        res.status(500).json({ error: 'Failed to validate promo code', details: err.message });
     }
 };
 
-// Apply promo code to transaction
-export const applyPromoCode = async (req, res) => {
-    try {
-        const { code, tx_id } = req.body;
-        const user_id = req.user.id;
-
-        const client = await query.getClient();
-
-        try {
-            await client.query('BEGIN');
-
-            // Get and validate promo code
-            const promoCode = await client.query(
-                `SELECT * FROM promo_codes 
-                WHERE code = $1 
-                AND is_active = true
-                AND usage_count < usage_limit
-                AND (start_date IS NULL OR start_date <= CURRENT_DATE)
-                AND (end_date IS NULL OR end_date >= CURRENT_DATE)
-                FOR UPDATE`,
-                [code]
-            );
-
-            if (promoCode.rows.length === 0) {
-                await client.query('ROLLBACK');
-                return res.status(404).json({ message: "Invalid or expired promo code" });
-            }
-
-            // Create redemption record
-            await client.query(
-                `INSERT INTO promo_redemptions (promo_code_id, tx_id, account_id)
-                VALUES ($1, $2, $3)`,
-                [promoCode.rows[0].promo_code_id, tx_id, user_id]
-            );
-
-            // Update usage count
-            await client.query(
-                `UPDATE promo_codes 
-                SET usage_count = usage_count + 1
-                WHERE promo_code_id = $1`,
-                [promoCode.rows[0].promo_code_id]
-            );
-
-            await client.query('COMMIT');
-            res.json({ message: "Promo code applied successfully" });
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    } catch (error) {
-        console.error('Error applying promo code:', error);
-        res.status(500).json({ message: "Internal server error" });
+export const calculateDiscount = (totalAmount, discountType, discountValue) => {
+    if (discountType === 'PERCENT') {
+        const discount = totalAmount * (discountValue / 100);
+        return Math.min(discount, totalAmount); 
+    } else if (discountType === 'FIXED') {
+        return Math.min(discountValue, totalAmount);
     }
+    return 0;
 };
 
-// Update promo code
-export const updatePromoCode = async (req, res) => {
+export const applyPromoCode = async (client, promoCodeId, txId, accountId) => {
     try {
-        const { promo_code_id } = req.params;
-        const { 
-            discount_type, 
-            discount_value, 
-            usage_limit,
-            start_date,
-            end_date,
-            is_active 
-        } = req.body;
+        const redemptionQuery = `
+            INSERT INTO promo_redemptions (promo_code_id, tx_id, account_id)
+            VALUES ($1, $2, $3)
+            RETURNING redemption_id
+        `;
+        await client.query(redemptionQuery, [promoCodeId, txId, accountId]);
 
-        // Validate discount value based on type
-        if (discount_type === 'PERCENT' && (discount_value <= 0 || discount_value > 100)) {
-            return res.status(400).json({ message: "Percentage discount must be between 0 and 100" });
-        }
-        if (discount_type === 'FIXED' && discount_value <= 0) {
-            return res.status(400).json({ message: "Fixed discount must be greater than 0" });
-        }
+        const updateUsageQuery = `
+            UPDATE promo_codes 
+            SET usage_count = usage_count + 1, updated_at = NOW()
+            WHERE promo_code_id = $1
+        `;
+        await client.query(updateUsageQuery, [promoCodeId]);
 
-        const result = await query(
-            `UPDATE promo_codes 
-            SET discount_type = $1, 
-                discount_value = $2, 
-                usage_limit = $3,
-                start_date = $4,
-                end_date = $5,
-                is_active = $6,
-                updated_at = NOW()
-            WHERE promo_code_id = $7
-            RETURNING *`,
-            [discount_type, discount_value, usage_limit, start_date, end_date, is_active, promo_code_id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Promo code not found" });
-        }
-
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('Error updating promo code:', error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
-
-// Delete promo code
-export const deletePromoCode = async (req, res) => {
-    try {
-        const { promo_code_id } = req.params;
-
-        const result = await query(
-            'DELETE FROM promo_codes WHERE promo_code_id = $1 RETURNING *',
-            [promo_code_id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Promo code not found" });
-        }
-
-        res.json({ message: "Promo code deleted successfully" });
-    } catch (error) {
-        console.error('Error deleting promo code:', error);
-        res.status(500).json({ message: "Internal server error" });
+        return true;
+    } catch (err) {
+        console.error('Error applying promo code:', err);
+        throw err;
     }
 }; 
