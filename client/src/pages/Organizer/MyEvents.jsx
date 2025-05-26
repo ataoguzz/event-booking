@@ -458,7 +458,6 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
   if (!event) return null;
 
   const heroImage =
-    event.cover_url ||
     event.hero_image_url ||
     (event.images && event.images.length > 0 ? event.images[0].url : null) ||
     "https://via.placeholder.com/800x400?text=Event+Image";
@@ -468,7 +467,7 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl md:text-3xl font-bold mb-1">{event.title}</DialogTitle>
-            <DialogDescription>Organized by: {event.organizer_display_name}</DialogDescription>
+            <DialogDescription>Organized by: {event.organizer?.display_name || event.organizer_display_name}</DialogDescription>
             <Badge variant="outline" className="w-fit">{mapCategoryToType(event.category)}</Badge>
           </DialogHeader>
 
@@ -478,7 +477,7 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
             <div className="grid md:grid-cols-2 gap-x-6 gap-y-3 text-sm text-muted-foreground">
               <div className="flex items-center"><Calendar className="h-4 w-4 mr-2 text-primary" /> {format(parseISO(event.start_at), "eeee, MMMM d, yyyy")}</div>
               <div className="flex items-center"><Clock className="h-4 w-4 mr-2 text-primary" /> {format(parseISO(event.start_at), "p")} - {format(parseISO(event.end_at), "p")}</div>
-              <div className="flex items-center col-span-1 md:col-span-2"><MapPin className="h-4 w-4 mr-2 text-primary" /> {event.venue_name} - {event.venue_address}, {event.venue_city}</div>
+              <div className="flex items-center col-span-1 md:col-span-2"><MapPin className="h-4 w-4 mr-2 text-primary" /> {event.venue?.name || event.venue_name} - {event.venue?.address || event.venue_address}, {event.venue?.city || event.venue_city}</div>
             </div>
 
             <div>
@@ -497,10 +496,10 @@ function EventDetailsDialog({ event, isOpen, onClose }) {
               <h3 className="text-lg font-semibold mb-2">Ticket Tiers</h3>
               {event.ticket_tiers && event.ticket_tiers.length > 0 ? (
                   <div className="space-y-2">
-                    {event.ticket_tiers.map(tier => (
-                        <div key={tier.tier_id} className="p-3 border rounded-md flex justify-between items-center text-sm">
+                    {event.ticket_tiers.map((tier, index) => (
+                        <div key={tier.tier_id || index} className="p-3 border rounded-md flex justify-between items-center text-sm">
                           <div>
-                            <p className="font-medium">{tier.tier_name}</p>
+                            <p className="font-medium">{tier.tier_name || tier.tier}</p>
                             {tier.description && <p className="text-xs text-muted-foreground">{tier.description}</p>}
                             <p className="text-xs text-muted-foreground">Quantity: {tier.quantity}</p>
                           </div>

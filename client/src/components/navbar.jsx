@@ -116,30 +116,7 @@ const Navbar = () => {
                           </Link>
                         </NavigationMenuLink>
                       </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/followers"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Followers
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/analytics"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Analytics
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
+
                     </>
                 )}
 
@@ -270,14 +247,7 @@ const Navbar = () => {
                                 </Link>
                               </Button>
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/followers" className="w-full flex items-center">
-                                  <Users className="mr-2 h-4 w-4" />
-                                  Followers
-                                </Link>
-                              </Button>
-                            </DropdownMenuItem>
+
                           </>
                       )}
                       {user.role === "admin" && (
@@ -374,20 +344,7 @@ const Navbar = () => {
                         >
                           Create Event
                         </Link>
-                        <Link
-                            to="/followers"
-                            className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                          Followers
-                        </Link>
-                        <Link
-                            to="/analytics"
-                            className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                          Analytics
-                        </Link>
+
                       </>
                   )}
 

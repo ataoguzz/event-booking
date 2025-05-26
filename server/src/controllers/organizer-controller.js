@@ -1,4 +1,5 @@
 import { query } from "../utils/db.js";
+import { getImageUrl } from '../utils/imageUtils.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../../public/uploads');
+const uploadsDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -59,9 +60,13 @@ export const uploadProfileImage = async (req, res, next) => {
             return res.status(404).json({ message: 'Organizer profile not found.' });
         }
         
+        // Process avatar URL before sending response
+        const profileData = result.rows[0];
+        profileData.avatar_url = getImageUrl(profileData.avatar_url);
+        
         res.status(200).json({
             message: 'Profile image uploaded successfully',
-            profile: result.rows[0]
+            profile: profileData
         });
         
     } catch (error) {
@@ -195,7 +200,11 @@ export const getOrganizerProfile = async (req, res, next) => {
             return res.status(404).json({ message: 'Organizer profile not found.' });
         }
         
-        res.status(200).json(result.rows[0]);
+        // Process avatar URL
+        const profileData = result.rows[0];
+        profileData.avatar_url = getImageUrl(profileData.avatar_url);
+        
+        res.status(200).json(profileData);
         
     } catch (error) {
         console.error('Get Organizer Profile Error:', error);
@@ -297,10 +306,22 @@ export const getPublicOrganizerProfile = async (req, res, next) => {
         
         const eventsResult = await query(eventsQuery, [organizerId]);
         
-        // Combine profile and events data
+        // Process image URLs and combine profile and events data
+        const profileData = result.rows[0];
+        const processedEvents = eventsResult.rows.map(event => ({
+            ...event,
+            cover_url: getImageUrl(event.cover_url)
+        }));
+        
+        // Process upcoming event cover_url if it exists
+        if (profileData.upcoming_event && profileData.upcoming_event.cover_url) {
+            profileData.upcoming_event.cover_url = getImageUrl(profileData.upcoming_event.cover_url);
+        }
+        
         const response = {
-            ...result.rows[0],
-            recent_events: eventsResult.rows || []
+            ...profileData,
+            avatar_url: getImageUrl(profileData.avatar_url),
+            recent_events: processedEvents
         };
         
         console.log(`[INFO] Successfully retrieved organizer profile for ID: ${organizerId}, is_following: ${response.is_following}`);

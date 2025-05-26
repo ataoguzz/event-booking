@@ -25,8 +25,6 @@ const Wallet = React.lazy(() => import("../pages/Attendee/Wallet.jsx"));
 // Organizer Pages
 const MyEvents = React.lazy(() => import("../pages/Organizer/MyEvents.jsx"));
 const CreateEvent = React.lazy(() => import("../pages/Organizer/CreateEvent.jsx"));
-const Followers = React.lazy(() => import("../pages/Organizer/Followers.jsx"));
-const Analytics = React.lazy(() => import("../pages/Organizer/Analytics.jsx"));
 const OrganizerProfile = React.lazy(() => import("../pages/Organizer/Profile.jsx"));
 
 // Admin Pages
@@ -46,17 +44,11 @@ const LoadComponent = ({ component }) => (
 const AllRoutes = () => {
     const {user, isAuthenticated} = useAuth();
 
-    // If we're still loading, don't render anything (handled by parent)
-    if (!user && !isAuthenticated) {
-        return <Navigate to="/auth/login" />;
-    }
-
     return useRoutes([
         {
             path: "/",
             element: user ? (
                 user.role === "organizer" ? <Navigate to="/my-events" /> :
-                user.role === "attendee" ? <Navigate to="/browse-events" /> :
                 user.role === "admin" ? <Navigate to="/dashboard" /> :
                 <Navigate to="/home" />
             ) : <Navigate to="/auth/login" />
@@ -120,14 +112,6 @@ const AllRoutes = () => {
             element: user && user.role === "organizer" ? <LoadComponent component={CreateEvent} /> : <Navigate to="/login" />
         },
         {
-            path: "/followers",
-            element: user && user.role === "organizer" ? <LoadComponent component={Followers} /> : <Navigate to="/login" />
-        },
-        {
-            path: "/analytics",
-            element: user && user.role === "organizer" ? <LoadComponent component={Analytics} /> : <Navigate to="/login" />
-        },
-        {
             path: "/profile",
             element: user && user.role === "organizer" ? <LoadComponent component={OrganizerProfile} /> : <Navigate to="/login" />
         },
@@ -159,7 +143,6 @@ const AllRoutes = () => {
             path: "/home",
             element: user ? (
                 user.role === "organizer" ? <Navigate to="/my-events" /> :
-                user.role === "attendee" ? <Navigate to="/browse-events" /> :
                 user.role === "admin" ? <Navigate to="/dashboard" /> :
                 <LoadComponent component={Home} />
             ) : <Navigate to="/login" />

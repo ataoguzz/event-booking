@@ -1,23 +1,14 @@
 import { query, getClient } from '../utils/db.js';
 import { calculateDiscount, applyPromoCode } from './promo-controller.js';
+import { getImageUrl } from '../utils/imageUtils.js';
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from 'url';
 
-// Helper function to handle both local and external image URLs
-const getImageUrl = (imageUrl, fallback = null) => {
-  if (!imageUrl) return fallback;
-  // If it's already a full URL (starts with http/https), return as is
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return imageUrl;
-  }
-  // If it's a local path (starts with /), prepend server URL
-  const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:3001';
-  if (imageUrl.startsWith('/')) {
-    return `${SERVER_BASE_URL}${imageUrl}`;
-  }
-  // Otherwise, assume it's a local path and prepend server URL
-  return `${SERVER_BASE_URL}/${imageUrl}`;
-};
+// Get the directory name for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRootDir = path.join(__dirname, '../..');
 
 const toInt = (v, defVal) => {
   const n = parseInt(v, 10);
@@ -242,7 +233,7 @@ export const getEventDetails = async (req, res) => {
         `;
         const { rows: tiersRows } = await query(tiersQuery, [eventIdInt]);
         ticketTiers = tiersRows.map(row => ({
-            tier: row.tier_name,
+            tier_name: row.tier_name,
             price: parseFloat(row.price),
             quantity: row.quantity,
             description: row.description
@@ -256,6 +247,8 @@ export const getEventDetails = async (req, res) => {
             start_at: event.start_at,
             end_at: event.end_at,
             status: event.status,
+            category: event.category,
+            venue_id: event.venue_id,
             hero_image_url: getImageUrl(event.hero_image_url),
             images: imagesRows.map(img => ({
                 url: getImageUrl(img.url),
@@ -276,6 +269,9 @@ export const getEventDetails = async (req, res) => {
                 is_seated: event.venue_is_seated,
                 facilities: facilitiesRows
             },
+            venue_name: event.venue_name,
+            venue_address: event.venue_address,
+            venue_city: event.venue_city,
             ticket_tiers: ticketTiers
         };
 
@@ -1079,7 +1075,14 @@ export const getOrganizerEvents = async (req, res, next) => {
             ORDER BY e.start_at DESC;
         `;
         const { rows } = await client.query(eventsQuery, [parsedOrganizerAccountId]);
-        res.status(200).json(rows);
+        
+        // Process image URLs for events
+        const processedEvents = rows.map(event => ({
+            ...event,
+            hero_image_url: getImageUrl(event.hero_image_url)
+        }));
+        
+        res.status(200).json(processedEvents);
     } catch (error) {
         console.error(`Error fetching events for organizer ${parsedOrganizerAccountId} via POST:`, error);
         next(error);

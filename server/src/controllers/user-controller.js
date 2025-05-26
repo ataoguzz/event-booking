@@ -1,4 +1,5 @@
 import { query, getClient } from "../utils/db.js";
+import { getImageUrl, processImageUrls } from '../utils/imageUtils.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -90,7 +91,19 @@ export const getOrganizers = async (req, res) => {
         offset    // $4
       ]);
   
-      res.json(rows);
+      // Process image URLs for organizers and their featured events
+      const processedRows = rows.map(row => {
+        const processed = processImageUrls(row, ['avatar_url']);
+        
+        // Process featured event cover_url if it exists
+        if (processed.featured_event && processed.featured_event.cover_url) {
+          processed.featured_event.cover_url = getImageUrl(processed.featured_event.cover_url);
+        }
+        
+        return processed;
+      });
+  
+      res.json(processedRows);
     } catch (err) {
       console.error('Error in getOrganizers:', err);
       res.status(500).json({ error: err.message });
@@ -485,14 +498,14 @@ export const getFollowedEvents = async (req, res) => {
             end_at: event.end_at,
             status: event.status,
             base_price: parseFloat(event.base_price),
-            cover_url: event.cover_url || `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`,
+            cover_url: getImageUrl(event.cover_url, `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`),
             tickets_sold: event.tickets_sold,
             venue_name: event.venue_name,
             venue_city: event.venue_city,
             organizer: {
                 account_id: event.organizer_account_id,
                 display_name: event.organizer_name,
-                avatar_url: event.organizer_avatar_url,
+                avatar_url: getImageUrl(event.organizer_avatar_url),
                 rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
             },
             time_until_event: new Date(event.start_at) - new Date()

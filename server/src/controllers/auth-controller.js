@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from "dotenv";
 import { query, getClient } from "../utils/db.js"; // Ensure path is correct
+import { getImageUrl } from '../utils/imageUtils.js';
 
 dotenv.config();
 
@@ -190,7 +191,7 @@ export const loginUser = async (req, res, next) => {
             bio: userProfile.bio,
             avg_rating: userProfile.avg_rating,
             followers_count: userProfile.followers_count,
-            avatar_url: userProfile.avatar_url,
+            avatar_url: getImageUrl(userProfile.avatar_url),
         }),
       };
 
@@ -264,7 +265,7 @@ export const getCurrentUser = async (req, res, next) => {
               bio: userProfile.bio,
               avg_rating: userProfile.avg_rating,
               followers_count: userProfile.followers_count,
-              avatar_url: userProfile.avatar_url,
+              avatar_url: getImageUrl(userProfile.avatar_url),
           }),
       };
 
