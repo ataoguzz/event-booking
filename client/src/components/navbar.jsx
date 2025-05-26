@@ -116,6 +116,7 @@ const Navbar = () => {
                           </Link>
                         </NavigationMenuLink>
                       </NavigationMenuItem>
+
                     </>
                 )}
 
@@ -246,14 +247,7 @@ const Navbar = () => {
                                 </Link>
                               </Button>
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/followers" className="w-full flex items-center">
-                                  <Users className="mr-2 h-4 w-4" />
-                                  Followers
-                                </Link>
-                              </Button>
-                            </DropdownMenuItem>
+
                           </>
                       )}
                       {user.role === "admin" && (
@@ -350,20 +344,7 @@ const Navbar = () => {
                         >
                           Create Event
                         </Link>
-                        <Link
-                            to="/followers"
-                            className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                          Followers
-                        </Link>
-                        <Link
-                            to="/analytics"
-                            className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-accent rounded-md"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                          Analytics
-                        </Link>
+
                       </>
                   )}
 

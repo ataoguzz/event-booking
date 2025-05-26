@@ -3,15 +3,14 @@ import { updateOrganizerProfile, uploadProfileImage, getOrganizerProfile, getPub
 import checkAuth from "../middleware/auth-check.js";
 import multer from "multer";
 
-// Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB limit
+        fileSize: 5 * 1024 * 1024,
     },
     fileFilter: (req, file, cb) => {
-        // Accept only image files
+        
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);
         } else {
@@ -20,13 +19,48 @@ const upload = multer({
     }
 });
 
+const optionalAuth = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return next();
+        }
+        
+        try {
+            const jwt = await import('jsonwebtoken');
+            const { query } = await import('../utils/db.js');
+            
+            const decodedToken = jwt.default.verify(token, process.env.JWT_SECRET);
+            const result = await query('SELECT account_id, role FROM accounts WHERE account_id = $1', [decodedToken.accountId]);
+            
+            if (result.rows.length > 0) {
+                const user = result.rows[0];
+                req.user = {
+                    accountId: user.account_id,
+                    role: user.role,
+                };
+                console.log(`[Optional Auth] User authenticated: ${user.account_id}`);
+            }
+        } catch (error) {
+           
+            console.log("[Optional Auth] Auth failed but continuing:", error.message);
+        }
+        
+        
+        next();
+    } catch (error) {
+        
+        console.error("[Optional Auth] Error:", error);
+        next();
+    }
+};
+
 export const organizerRouter = express.Router();
 
-// Profile management routes (private, for organizers only)
 organizerRouter.get("/profile", checkAuth, getOrganizerProfile);
 organizerRouter.put("/profile", checkAuth, updateOrganizerProfile);
 organizerRouter.post("/profile-image", checkAuth, upload.single('image'), uploadProfileImage);
 
 // Public routes (accessible to all users)
-organizerRouter.get("/organizer/:id", getPublicOrganizerProfile);
-console.log("Registered route: /api/organizer/organizer/:id for getPublicOrganizerProfile"); 
+organizerRouter.get("/:id", optionalAuth, getPublicOrganizerProfile);

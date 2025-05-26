@@ -22,7 +22,6 @@ export const generateTicketPDF = async (ticketData) => {
     } = ticketData;
 
     try {
-        // Generate QR code data with verification info
         const qrData = {
             ticket_id: ticket_id,
             qr_token: qr_token,
@@ -32,7 +31,6 @@ export const generateTicketPDF = async (ticketData) => {
             verification_hash: Buffer.from(`${ticket_id}-${qr_token}`).toString('base64')
         };
 
-        // Generate QR code as buffer
         let qrCodeBuffer;
         try {
             qrCodeBuffer = await QRCode.toBuffer(JSON.stringify(qrData), {
@@ -49,14 +47,11 @@ export const generateTicketPDF = async (ticketData) => {
             qrCodeBuffer = null;
         }
 
-        // Create PDF document
         const doc = new PDFDocument({ margin: 50, size: 'A4' });
         
-        // Collect PDF data in chunks
         const chunks = [];
         doc.on('data', chunk => chunks.push(chunk));
         
-        // Return a promise that resolves with the PDF buffer
         return new Promise((resolve, reject) => {
             doc.on('end', () => {
                 const pdfBuffer = Buffer.concat(chunks);
@@ -65,28 +60,21 @@ export const generateTicketPDF = async (ticketData) => {
 
             doc.on('error', reject);
 
-            // PDF Header
             doc.fontSize(24).fillColor('#2563eb').text('EVENT TICKET', { align: 'center' });
             doc.moveDown(0.5);
             
-            // Event Title
             doc.fontSize(20).fillColor('#000').text(event_name, { align: 'center' });
             doc.moveDown(0.3);
             
-            // Organizer
             doc.fontSize(12).fillColor('#666').text(`Presented by ${organizer_name}`, { align: 'center' });
             doc.moveDown(1);
 
-            // Ticket ID
             doc.fontSize(10).fillColor('#999').text(`Ticket ID: ${ticket_id}`, { align: 'right' });
             doc.moveDown(0.5);
 
-            // Main content in two columns
             const leftColumnX = 50;
             const rightColumnX = 300;
             let currentY = doc.y;
-
-            // Left Column - Event Details
             doc.fontSize(14).fillColor('#000').text('EVENT DETAILS', leftColumnX, currentY);
             currentY += 25;
 
@@ -115,7 +103,6 @@ export const generateTicketPDF = async (ticketData) => {
             doc.text(`${venue_address}, ${venue_city}`, leftColumnX + 60, currentY);
             currentY += 30;
 
-            // Ticket Details
             doc.fontSize(14).fillColor('#000').text('TICKET DETAILS', leftColumnX, currentY);
             currentY += 25;
 
@@ -141,11 +128,9 @@ export const generateTicketPDF = async (ticketData) => {
             const price = price_at_purchase ? parseFloat(price_at_purchase) : 0;
             doc.text(`$${price.toFixed(2)}`, leftColumnX + 60, currentY);
 
-            // Right Column - QR Code
             const qrY = doc.y - 150;
             doc.fontSize(14).fillColor('#000').text('SCAN FOR ENTRY', rightColumnX, qrY);
             
-            // Add QR code image from buffer if available
             if (qrCodeBuffer) {
                 try {
                     doc.image(qrCodeBuffer, rightColumnX, qrY + 25, { width: 150, height: 150 });
@@ -157,11 +142,9 @@ export const generateTicketPDF = async (ticketData) => {
                 doc.fontSize(10).fillColor('#999').text('QR Code unavailable', rightColumnX, qrY + 75);
             }
 
-            // Footer
             doc.moveDown(3);
             currentY = doc.y + 100;
             
-            // Important notices
             doc.fontSize(10).fillColor('#666');
             doc.text('IMPORTANT NOTICES:', 50, currentY, { align: 'left' });
             currentY += 15;
@@ -175,10 +158,7 @@ export const generateTicketPDF = async (ticketData) => {
             currentY += 12;
             doc.text('• No refunds or exchanges unless event is cancelled', 50, currentY);
             
-            // Border
             doc.rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke('#ddd');
-
-            // End PDF
             doc.end();
         });
 

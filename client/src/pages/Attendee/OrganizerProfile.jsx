@@ -18,9 +18,7 @@ export default function OrganizerProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowingLoading, setIsFollowingLoading] = useState(false);
 
-  // Get API base URL from the window location instead of hardcoding
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                     window.location.origin.replace(/:\d+$/, ':3001');
+
 
   useEffect(() => {
     // Load public organizer data
@@ -122,10 +120,8 @@ export default function OrganizerProfile() {
     );
   }
 
-  // Ensure avatar URL is absolute
-  const displayAvatarUrl = organizer.avatar_url && organizer.avatar_url.startsWith('/uploads/')
-    ? `${apiBaseUrl}${organizer.avatar_url}`
-    : organizer.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
+  // Use avatar URL directly from server (already processed)
+  const displayAvatarUrl = organizer.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
 
   return (
     <Layout>
@@ -162,7 +158,7 @@ export default function OrganizerProfile() {
                 className="whitespace-nowrap"
                 onClick={handleFollowToggle}
                 disabled={isFollowingLoading}
-                variant={isFollowing ? "default" : "secondary"}
+                variant={!isFollowing ? "default" : "secondary"}
               >
                 {isFollowing ? (
                   <>

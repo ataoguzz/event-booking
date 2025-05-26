@@ -153,6 +153,7 @@ CREATE TABLE events (
     base_price NUMERIC(10, 2) CHECK (base_price >= 0),
     tickets_sold INT DEFAULT 0 CHECK (tickets_sold >= 0),
     hero_image_url TEXT,
+    average_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (average_rating >= 0 AND average_rating <= 5),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT fk_organizer
@@ -327,6 +328,48 @@ JOIN venues v ON v.venue_id = e.venue_id
 WHERE e.status = 'PUBLISHED'
   AND e.end_at >= NOW()
 ORDER BY e.start_at ASC;
+
+-- TRIGGERS
+
+CREATE OR REPLACE FUNCTION update_event_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- If event end time has passed, mark as COMPLETED
+    IF NEW.end_at < NOW() AND NEW.status = 'PUBLISHED' THEN
+        NEW.status = 'COMPLETED';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_event_status
+    BEFORE UPDATE ON events
+    FOR EACH ROW
+    EXECUTE FUNCTION update_event_status();
+
+
+CREATE OR REPLACE FUNCTION check_promo_expiry()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if promo code should be deactivated due to expiry
+    IF NEW.end_date IS NOT NULL AND NEW.end_date < CURRENT_DATE THEN
+        NEW.is_active = FALSE;
+    END IF;
+    
+    -- Check if promo code should be deactivated due to usage limit
+    IF NEW.usage_limit IS NOT NULL AND NEW.usage_count >= NEW.usage_limit THEN
+        NEW.is_active = FALSE;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_check_promo_expiry
+    BEFORE UPDATE ON promo_codes
+    FOR EACH ROW
+    EXECUTE FUNCTION check_promo_expiry();
 
 CREATE INDEX idx_accounts_email ON accounts(email);
 CREATE INDEX idx_events_start_at ON events(start_at);

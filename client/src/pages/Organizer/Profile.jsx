@@ -24,9 +24,7 @@ export default function OrganizerProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Get API base URL from the window location instead of hardcoding
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                     window.location.origin.replace(/:\d+$/, ':3001');
+
 
   useEffect(() => {
     if (user) {
@@ -36,14 +34,10 @@ export default function OrganizerProfile() {
       setEmail(user.email || '');
       setIsLoading(false);
       
-      // If avatar_url is a relative URL, convert it to absolute URL
-      if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
-        setAvatarUrl(`${apiBaseUrl}${user.avatar_url}`);
-      } else {
-        setAvatarUrl(user.avatar_url || 'https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png');
-      }
+      // Use avatar URL directly from server (already processed)
+      setAvatarUrl(user.avatar_url || 'https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png');
     }
-  }, [user, apiBaseUrl]);
+      }, [user]);
 
   const handleOpenEditDialog = () => {
     setIsEditDialogOpen(true);
@@ -57,11 +51,7 @@ export default function OrganizerProfile() {
       setAvatarFile(null);
       
       // Restore the original avatar URL from user data
-      if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
-        setAvatarUrl(`${apiBaseUrl}${user.avatar_url}`);
-      } else {
-        setAvatarUrl(user.avatar_url || 'https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png');
-      }
+      setAvatarUrl(user.avatar_url || 'https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png');
     }
   };
 
@@ -74,9 +64,9 @@ export default function OrganizerProfile() {
         try {
           const uploadResult = await organizerService.uploadProfileImage(avatarFile);
           
-          // Convert the relative URL to an absolute URL for display
+          // Use the avatar URL directly from the server response
           if (uploadResult.profile.avatar_url) {
-            setAvatarUrl(`${apiBaseUrl}${uploadResult.profile.avatar_url}`);
+            setAvatarUrl(uploadResult.profile.avatar_url);
           }
         } catch (uploadError) {
           console.error('Error uploading image:', uploadError);
@@ -173,10 +163,8 @@ export default function OrganizerProfile() {
     );
   }
 
-  // Ensure avatar URL is absolute
-  const displayAvatarUrl = user.avatar_url && user.avatar_url.startsWith('/uploads/')
-    ? `${apiBaseUrl}${user.avatar_url}`
-    : user.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
+  // Use avatar URL directly from server (already processed)
+  const displayAvatarUrl = user.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
 
   return (
     <Layout>

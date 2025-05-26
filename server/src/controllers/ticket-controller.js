@@ -40,7 +40,6 @@ export const getUserTickets = async (req, res) => {
 
         const { rows: tickets } = await query(ticketsQuery, [accountId]);
 
-        // Format tickets for frontend
         const formattedTickets = tickets.map(ticket => {
             const isUpcoming = new Date(ticket.start_at) > new Date();
             const seatInfo = ticket.seat_number 

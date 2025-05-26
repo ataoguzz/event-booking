@@ -1,23 +1,13 @@
 import { query, getClient } from '../utils/db.js';
 import { calculateDiscount, applyPromoCode } from './promo-controller.js';
+import { getImageUrl } from '../utils/imageUtils.js';
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from 'url';
 
-// Helper function to handle both local and external image URLs
-const getImageUrl = (imageUrl, fallback = null) => {
-  if (!imageUrl) return fallback;
-  // If it's already a full URL (starts with http/https), return as is
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return imageUrl;
-  }
-  // If it's a local path (starts with /), prepend server URL
-  const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:3001';
-  if (imageUrl.startsWith('/')) {
-    return `${SERVER_BASE_URL}${imageUrl}`;
-  }
-  // Otherwise, assume it's a local path and prepend server URL
-  return `${SERVER_BASE_URL}/${imageUrl}`;
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRootDir = path.join(__dirname, '../..');
 
 const toInt = (v, defVal) => {
   const n = parseInt(v, 10);
@@ -242,7 +232,7 @@ export const getEventDetails = async (req, res) => {
         `;
         const { rows: tiersRows } = await query(tiersQuery, [eventIdInt]);
         ticketTiers = tiersRows.map(row => ({
-            tier: row.tier_name,
+            tier_name: row.tier_name,
             price: parseFloat(row.price),
             quantity: row.quantity,
             description: row.description
@@ -256,6 +246,8 @@ export const getEventDetails = async (req, res) => {
             start_at: event.start_at,
             end_at: event.end_at,
             status: event.status,
+            category: event.category,
+            venue_id: event.venue_id,
             hero_image_url: getImageUrl(event.hero_image_url),
             images: imagesRows.map(img => ({
                 url: getImageUrl(img.url),
@@ -276,6 +268,9 @@ export const getEventDetails = async (req, res) => {
                 is_seated: event.venue_is_seated,
                 facilities: facilitiesRows
             },
+            venue_name: event.venue_name,
+            venue_address: event.venue_address,
+            venue_city: event.venue_city,
             ticket_tiers: ticketTiers
         };
 
@@ -802,6 +797,16 @@ export const purchaseTickets = async (req, res) => {
 
 const mapEventTypeToCategory = (eventType) => {
     const mapping = {
+        // Frontend sends these values
+        "CONCERT": 'CONCERT',
+        "THEATER": 'THEATER',
+        "SPORTS": 'SPORTS',
+        "STANDUP": 'STANDUP',
+        "CONFERENCE": 'CONFERENCE',
+        "WORKSHOP": 'WORKSHOP',
+        "FESTIVAL": 'FESTIVAL',
+        "OTHER": 'OTHER',
+        // Legacy mappings (in case old format is still used)
         "Concert": 'CONCERT',
         "Theater": 'THEATER',
         "Stand-up Comedy": 'STANDUP',
@@ -821,7 +826,8 @@ export const createEvent = async (req, res, next) => {
         startDate, startTime, endDate, endTime,
         venue, rules, organizerAccountId,
         ticketTiersData: ticketTiersDataString,
-        promoCodes: promoCodesString
+        promoCodes: promoCodesString,
+        seatAssignments: seatAssignmentsString
     } = req.body;
 
     if (!organizerAccountId) {
@@ -887,7 +893,7 @@ export const createEvent = async (req, res, next) => {
                     throw new Error(`Invalid start date for promo code ${promo.code}.`);
                 }
                 if (promo.endDate && isNaN(new Date(promo.endDate).getTime())) {
-                    throw new Error(`Invalid end date for promo code ${promo.code}.`);
+                    throw new Error(`Invalid end date for promo code ${promo.endDate}.`);
                 }
                 if (promo.startDate && promo.endDate && new Date(promo.endDate) < new Date(promo.startDate)) {
                     throw new Error(`End date must be after start date for promo code ${promo.code}.`);
@@ -895,6 +901,19 @@ export const createEvent = async (req, res, next) => {
             }
         } catch (e) {
             return res.status(400).json({ message: `Invalid promo codes data: ${e.message}` });
+        }
+    }
+
+    // Parse seat assignments for seated venues
+    let seatAssignments = {};
+    if (seatAssignmentsString) {
+        try {
+            seatAssignments = JSON.parse(seatAssignmentsString);
+            if (typeof seatAssignments !== 'object' || seatAssignments === null) {
+                throw new Error("Seat assignments must be an object.");
+            }
+        } catch (e) {
+            return res.status(400).json({ message: `Invalid seat assignments data: ${e.message}` });
         }
     }
 
@@ -983,6 +1002,9 @@ export const createEvent = async (req, res, next) => {
         });
         await Promise.all(imageInsertPromises);
 
+        // Create a mapping of tier names to tier IDs for seat assignments
+        const tierNameToIdMap = {};
+        
         for (const tier of ticketTiers) {
             const tierInsertQuery = `
                 INSERT INTO event_ticket_tiers (event_id, tier_name, price, quantity)
@@ -996,26 +1018,9 @@ export const createEvent = async (req, res, next) => {
                 parseInt(tier.quantity)
             ]);
             const newTierId = tierResult.rows[0].tier_id;
+            tierNameToIdMap[tier.tierName] = newTierId;
 
-            if (isSeatedVenue) {
-                // For seated venues, assign seats to tickets
-                const seatAssignmentQuery = `
-                    INSERT INTO tickets (event_id, seat_id, tier_id, status)
-                    SELECT $1, s.seat_id, $2, 'AVAILABLE'
-                    FROM seats s
-                    LEFT JOIN tickets t ON t.event_id = $1 AND t.seat_id = s.seat_id
-                    WHERE s.venue_id = $3
-                    AND t.ticket_id IS NULL
-                    ORDER BY s.section, s.row_label, CAST(s.seat_number AS INT)
-                    LIMIT $4;
-                `;
-                await client.query(seatAssignmentQuery, [
-                    newEventId,
-                    newTierId,
-                    venueId,
-                    parseInt(tier.quantity)
-                ]);
-            } else {
+            if (!isSeatedVenue) {
                 // For non-seated venues, create tickets without seat assignments
                 const ticketInsertPromises = [];
                 for (let i = 0; i < parseInt(tier.quantity); i++) {
@@ -1027,6 +1032,47 @@ export const createEvent = async (req, res, next) => {
                     );
                 }
                 await Promise.all(ticketInsertPromises);
+            }
+        }
+
+        // For seated venues, handle seat assignments
+        if (isSeatedVenue) {
+            if (Object.keys(seatAssignments).length > 0) {
+                // Use organizer's specific seat assignments
+                const seatAssignmentPromises = [];
+                for (const [seatId, tierName] of Object.entries(seatAssignments)) {
+                    const tierId = tierNameToIdMap[tierName];
+                    if (tierId) {
+                        seatAssignmentPromises.push(
+                            client.query(
+                                `INSERT INTO tickets (event_id, seat_id, tier_id, status) VALUES ($1, $2, $3, 'AVAILABLE')`,
+                                [newEventId, parseInt(seatId), tierId]
+                            )
+                        );
+                    }
+                }
+                await Promise.all(seatAssignmentPromises);
+            } else {
+                // Fallback: assign seats sequentially if no specific assignments provided
+                for (const tier of ticketTiers) {
+                    const tierId = tierNameToIdMap[tier.tierName];
+                    const seatAssignmentQuery = `
+                        INSERT INTO tickets (event_id, seat_id, tier_id, status)
+                        SELECT $1, s.seat_id, $2, 'AVAILABLE'
+                        FROM seats s
+                        LEFT JOIN tickets t ON t.event_id = $1 AND t.seat_id = s.seat_id
+                        WHERE s.venue_id = $3
+                        AND t.ticket_id IS NULL
+                        ORDER BY s.section, s.row_label, CAST(s.seat_number AS INT)
+                        LIMIT $4;
+                    `;
+                    await client.query(seatAssignmentQuery, [
+                        newEventId,
+                        tierId,
+                        venueId,
+                        parseInt(tier.quantity)
+                    ]);
+                }
             }
         }
 
@@ -1079,7 +1125,14 @@ export const getOrganizerEvents = async (req, res, next) => {
             ORDER BY e.start_at DESC;
         `;
         const { rows } = await client.query(eventsQuery, [parsedOrganizerAccountId]);
-        res.status(200).json(rows);
+        
+        // Process image URLs for events
+        const processedEvents = rows.map(event => ({
+            ...event,
+            hero_image_url: getImageUrl(event.hero_image_url)
+        }));
+        
+        res.status(200).json(processedEvents);
     } catch (error) {
         console.error(`Error fetching events for organizer ${parsedOrganizerAccountId} via POST:`, error);
         next(error);

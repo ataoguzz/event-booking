@@ -48,6 +48,9 @@ export default function LoginForm() {
 
     return (
         <div className="w-full max-w-md">
+            <div className="text-center mb-6">
+                <h1 className="text-3xl font-bold text-black">EventTicket</h1>
+            </div>
             <Card>
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
@@ -73,15 +76,7 @@ export default function LoginForm() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <Label htmlFor="password">Password</Label>
-                                <Link
-                                    to="/auth/forgot-password"
-                                    className={`text-sm text-gray-600 hover:underline ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
-                                >
-                                    Forgot password?
-                                </Link>
-                            </div>
+                            <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"
                                 name="password" 

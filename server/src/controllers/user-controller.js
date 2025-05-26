@@ -1,12 +1,11 @@
 import { query, getClient } from "../utils/db.js";
+import { getImageUrl, processImageUrls } from '../utils/imageUtils.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper functions
 const toInt = (val, defaultVal) => {
     const parsed = parseInt(val, 10);
     return isNaN(parsed) ? defaultVal : parsed;
@@ -89,8 +88,18 @@ export const getOrganizers = async (req, res) => {
         limit,    // $3
         offset    // $4
       ]);
+ 
+      const processedRows = rows.map(row => {
+        const processed = processImageUrls(row, ['avatar_url']);
+        
+        if (processed.featured_event && processed.featured_event.cover_url) {
+          processed.featured_event.cover_url = getImageUrl(processed.featured_event.cover_url);
+        }
+        
+        return processed;
+      });
   
-      res.json(rows);
+      res.json(processedRows);
     } catch (err) {
       console.error('Error in getOrganizers:', err);
       res.status(500).json({ error: err.message });
@@ -122,6 +131,26 @@ export const followOrganizer = async (req, res) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
+      
+      const organizerCheck = await client.query(
+        'SELECT account_id FROM organizers WHERE account_id = $1',
+        [orgId]
+      );
+      
+      if (organizerCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Organizer not found' });
+      }
+      
+      const attendeeCheck = await client.query(
+        'SELECT account_id FROM attendees WHERE account_id = $1',
+        [req.user.accountId]
+      );
+      
+      if (attendeeCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Only attendees can follow organizers' });
+      }
   
       const insertResult = await client.query(
         `INSERT INTO follows (follower_account_id, organizer_account_id)
@@ -131,11 +160,20 @@ export const followOrganizer = async (req, res) => {
       );
   
       if (insertResult.rowCount > 0) {
+        // Update organizer's followers count
         await client.query(
           `UPDATE organizers
              SET followers_count = followers_count + 1
            WHERE account_id = $1`,
           [orgId]
+        );
+        
+        // Update attendee's following count
+        await client.query(
+          `UPDATE attendees
+             SET following_count = following_count + 1
+           WHERE account_id = $1`,
+          [req.user.accountId]
         );
       }
   
@@ -151,7 +189,7 @@ export const followOrganizer = async (req, res) => {
 };
   
 
-  export const unfollowOrganizer = async (req, res) => {
+export const unfollowOrganizer = async (req, res) => {
     const orgId = parseInt(req.params.id, 10);
     if (isNaN(orgId) || orgId <= 0) {
       return res.status(400).json({ error: 'Invalid organizer id' });
@@ -160,6 +198,28 @@ export const followOrganizer = async (req, res) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
+      
+      // Check if organizer exists
+      const organizerCheck = await client.query(
+        'SELECT account_id FROM organizers WHERE account_id = $1',
+        [orgId]
+      );
+      
+      if (organizerCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Organizer not found' });
+      }
+      
+      // Check if current user is an attendee
+      const attendeeCheck = await client.query(
+        'SELECT account_id FROM attendees WHERE account_id = $1',
+        [req.user.accountId]
+      );
+      
+      if (attendeeCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Only attendees can unfollow organizers' });
+      }
   
       const { rowCount } = await client.query(
         `DELETE FROM follows
@@ -169,11 +229,20 @@ export const followOrganizer = async (req, res) => {
       );
   
       if (rowCount) {
+        // Update organizer's followers count
         await client.query(
           `UPDATE organizers
              SET followers_count = GREATEST(followers_count - 1, 0)
            WHERE account_id = $1`,
           [orgId]
+        );
+        
+        // Update attendee's following count
+        await client.query(
+          `UPDATE attendees
+             SET following_count = GREATEST(following_count - 1, 0)
+           WHERE account_id = $1`,
+          [req.user.accountId]
         );
       }
   
@@ -255,7 +324,6 @@ export const getTransactions = async (req, res) => {
         let whereClause = 'WHERE t.attendee_account_id = $1';
         const queryParams = [accountId];
         
-        // Add filter conditions
         if (filter === 'deposits') {
             whereClause += ' AND t.tx_type = $2';
             queryParams.push('TOP_UP');
@@ -423,14 +491,14 @@ export const getFollowedEvents = async (req, res) => {
             end_at: event.end_at,
             status: event.status,
             base_price: parseFloat(event.base_price),
-            cover_url: event.cover_url || `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`,
+            cover_url: getImageUrl(event.cover_url, `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`),
             tickets_sold: event.tickets_sold,
             venue_name: event.venue_name,
             venue_city: event.venue_city,
             organizer: {
                 account_id: event.organizer_account_id,
                 display_name: event.organizer_name,
-                avatar_url: event.organizer_avatar_url,
+                avatar_url: getImageUrl(event.organizer_avatar_url),
                 rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
             },
             time_until_event: new Date(event.start_at) - new Date()

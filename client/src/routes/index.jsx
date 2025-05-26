@@ -42,15 +42,13 @@ const LoadComponent = ({ component }) => (
 );
 
 const AllRoutes = () => {
-    const {user} = useAuth();
-
+    const {user, isAuthenticated} = useAuth();
 
     return useRoutes([
         {
             path: "/",
             element: user ? (
                 user.role === "organizer" ? <Navigate to="/my-events" /> :
-                user.role === "attendee" ? <Navigate to="/browse-events" /> :
                 user.role === "admin" ? <Navigate to="/dashboard" /> :
                 <Navigate to="/home" />
             ) : <Navigate to="/auth/login" />
@@ -145,7 +143,6 @@ const AllRoutes = () => {
             path: "/home",
             element: user ? (
                 user.role === "organizer" ? <Navigate to="/my-events" /> :
-                user.role === "attendee" ? <Navigate to="/browse-events" /> :
                 user.role === "admin" ? <Navigate to="/dashboard" /> :
                 <LoadComponent component={Home} />
             ) : <Navigate to="/login" />

@@ -1,8 +1,8 @@
+
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import AttendeeHomepage from './AttendeeHomepage.jsx';
-import OrganizerHomepage from './OrganizerHomepage.jsx';
 import AdminHomepage from './AdminHomepage.jsx';
 
 export default function Home() {
@@ -23,8 +23,6 @@ export default function Home() {
     switch (user.role) {
         case 'attendee':
             return <AttendeeHomepage />;
-        case 'organizer':
-            return <OrganizerHomepage />;
         case 'admin':
             return <AdminHomepage />;
         default:

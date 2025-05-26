@@ -11,6 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.j
 import { Calendar, Star, Search, Users, Plus, Check } from 'lucide-react';
 import apiClient from '../../helpers/apiCore.js';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || 
+window.location.origin.replace(/:\d+$/, ':3001');
+
 export default function FindOrganizers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popular');
@@ -156,6 +159,11 @@ export default function FindOrganizers() {
 function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
   const rating = organizer.avg_rating ? Number(organizer.avg_rating) : 0;
 
+  const displayAvatarUrl = organizer.avatar_url && organizer.avatar_url.startsWith('/uploads/')
+    ? `${apiBaseUrl}${organizer.avatar_url}`
+    : organizer.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
+
+
   return (
     <Card className="overflow-hidden">
       {organizer.featured_event && (
@@ -184,7 +192,7 @@ function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
 
       <CardHeader className="flex flex-row items-center gap-4 pb-2">
         <Avatar className="h-12 w-12">
-          <AvatarImage src={organizer.avatar_url} />
+          <AvatarImage src={displayAvatarUrl} />
           <AvatarFallback>{organizer.display_name.substring(0, 2)}</AvatarFallback>
         </Avatar>
         <div>

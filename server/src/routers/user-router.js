@@ -11,7 +11,6 @@ userRouter.delete("/organizers/follow/:id", checkAuth, unfollowOrganizer);
 
 userRouter.get("/followed-events", checkAuth, getFollowedEvents);
 
-// Wallet
 userRouter.get("/wallet", checkAuth, getWalletInfo);
 userRouter.get("/wallet/transactions", checkAuth, getTransactions);
 userRouter.post("/wallet/topup", checkAuth, topUpBalance);

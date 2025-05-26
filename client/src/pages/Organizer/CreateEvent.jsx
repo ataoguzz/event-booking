@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"; // Added useRef
@@ -11,31 +12,26 @@ import { Textarea } from "@/components/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.jsx";
 import { Calendar } from "@/components/ui/calendar.jsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.jsx";
-import VenueRequestLayoutPreview from '@/components/VenueRequestLayoutPreview.jsx'; // Adjust path
 import {
     Dialog,
     DialogContent,
-    DialogDescription, // Not used in your current JSX for venue request
+    // DialogDescription, // Not used in your current JSX for venue request
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter
 } from "@/components/ui/dialog.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
-import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Loader2, Tag } from "lucide-react";
+import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Percent, Tag } from "lucide-react";
 import { cn } from "@/lib/utils.js";
 import { format } from "date-fns";
 // import { v4 as uuidv4 } from 'uuid'; // REMOVE THIS LINE
 import apiClient from "@/helpers/apiCore.js";
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import SeatAssignment from "@/components/SeatAssignment.jsx";
-import { useToast } from "@/hooks/use-toast";
 
 const CreateEvent = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
 
     const [formData, setFormData] = useState({
         title: "",
@@ -50,11 +46,19 @@ const CreateEvent = () => {
         images: [],
     });
 
-    // Add promo codes state
-    const [promoCodes, setPromoCodes] = useState([]);
-
     // Use useRef for a persistent, incrementing ID that doesn't cause re-renders
     const nextTierId = useRef(1);
+
+    // Helper function to calculate remaining capacity for a specific tier
+    const getRemainingCapacity = (excludeTierId = null) => {
+        if (!selectedVenue || selectedVenue.capacity <= 0) return Infinity;
+        
+        const usedCapacity = ticketTiers
+            .filter(tier => tier.id !== excludeTierId)
+            .reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+        
+        return Math.max(0, selectedVenue.capacity - usedCapacity);
+    };
 
     // Initialize the first tier with an ID from the ref
     const getInitialTier = () => {
@@ -63,42 +67,32 @@ const CreateEvent = () => {
         return { id: id, tierName: '', price: '', quantity: '' };
     };
 
-    const [ticketTiers, setTicketTiers] = useState([getInitialTier()]);
+    const [ticketTiers, setTicketTiers] = useState([getInitialTier()]); // Use function to get initial tier
+
     const [selectedVenue, setSelectedVenue] = useState(null);
     const [isVenueDialogOpen, setIsVenueDialogOpen] = useState(false);
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [venues, setVenues] = useState([]);
-    const [venueRequest, setVenueRequest] = useState({
-        name: "",
-        address: "",
-        city: "",
-        capacity: "",
-        is_seated: false,
-        requested_layout_rows: '',
-        requested_layout_cols: '',
-        description: "",
-    });
-    const [seatAssignments, setSeatAssignments] = useState({});
-
-    const resetForm = () => {
-        setFormData({
-            title: "",
-            description: "",
-            eventType: "",
-            startDate: null,
-            endDate: null,
-            startTime: "",
-            endTime: "",
-            venue: "",
-            rules: "",
-            images: [],
-        });
-        setTicketTiers([getInitialTier()]);
-        setSelectedVenue(null);
-        setSeatAssignments({});
-        setErrors({});
+    const [venueRequest, setVenueRequest] = useState({name: "", address: "", capacity: "", description: ""});
+    const [seatAssignments, setSeatAssignments] = useState({}); // For seated venues
+    
+    // Promo codes state
+    const nextPromoId = useRef(1);
+    const getInitialPromo = () => {
+        const id = nextPromoId.current;
+        nextPromoId.current += 1;
+        return { 
+            id: id, 
+            code: '', 
+            discountType: 'PERCENT', 
+            discountValue: '', 
+            usageLimit: '', 
+            startDate: null, 
+            endDate: null 
+        };
     };
+    const [promoCodes, setPromoCodes] = useState([]);
 
     // ... (useEffect for fetchVenues remains the same) ...
     useEffect(() => {
@@ -146,15 +140,77 @@ const CreateEvent = () => {
         }
     };
 
-    const handleTierChange = (id, field, value) => { /* ... same as before ... */
+    const handleTierChange = (id, field, value) => {
         const oldTier = ticketTiers.find(tier => tier.id === id);
-
+        
+        // If changing quantity, validate against venue capacity
+        if (field === 'quantity' && selectedVenue && selectedVenue.capacity > 0) {
+            const numValue = parseInt(value, 10);
+            if (!isNaN(numValue) && numValue > 0) {
+                // Calculate total quantity excluding the current tier being changed
+                const otherTiersTotal = ticketTiers
+                    .filter(tier => tier.id !== id)
+                    .reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                
+                const newTotal = otherTiersTotal + numValue;
+                
+                // Prevent exceeding venue capacity
+                if (newTotal > selectedVenue.capacity) {
+                    const maxAllowed = selectedVenue.capacity - otherTiersTotal;
+                    setErrors(prev => ({
+                        ...prev,
+                        ticketTiers: {
+                            ...prev.ticketTiers,
+                            [id]: {
+                                ...prev.ticketTiers?.[id],
+                                quantity: `Maximum ${maxAllowed} tickets allowed (venue capacity: ${selectedVenue.capacity.toLocaleString()})`
+                            }
+                        }
+                    }));
+                    return; // Don't update the value
+                }
+                
+                // Prevent individual tier from exceeding venue capacity
+                if (numValue > selectedVenue.capacity) {
+                    setErrors(prev => ({
+                        ...prev,
+                        ticketTiers: {
+                            ...prev.ticketTiers,
+                            [id]: {
+                                ...prev.ticketTiers?.[id],
+                                quantity: `Cannot exceed venue capacity of ${selectedVenue.capacity.toLocaleString()}`
+                            }
+                        }
+                    }));
+                    return; // Don't update the value
+                }
+            }
+        }
+        
+        // If changing price, validate it's not negative
+        if (field === 'price') {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue) && numValue < 0) {
+                setErrors(prev => ({
+                    ...prev,
+                    ticketTiers: {
+                        ...prev.ticketTiers,
+                        [id]: {
+                            ...prev.ticketTiers?.[id],
+                            price: "Price cannot be negative"
+                        }
+                    }
+                }));
+                return; // Don't update negative prices
+            }
+        }
+        
         setTicketTiers(prevTiers =>
             prevTiers.map(tier =>
                 tier.id === id ? { ...tier, [field]: value } : tier
             )
         );
-
+        
         // Update seat assignments if tier name changed
         if (field === 'tierName' && oldTier && oldTier.tierName !== value) {
             const newSeatAssignments = { ...seatAssignments };
@@ -165,7 +221,8 @@ const CreateEvent = () => {
             });
             setSeatAssignments(newSeatAssignments);
         }
-
+        
+        // Clear errors for this field if value is being updated successfully
         if (errors.ticketTiers && errors.ticketTiers[id] && errors.ticketTiers[id][field]) {
             setErrors(prev => ({
                 ...prev,
@@ -190,7 +247,7 @@ const CreateEvent = () => {
         if (ticketTiers.length > 1) {
             const tierToRemove = ticketTiers.find(tier => tier.id === idToRemove);
             setTicketTiers(ticketTiers.filter(tier => tier.id !== idToRemove));
-
+            
             // Clean up seat assignments that reference the removed tier
             if (tierToRemove) {
                 const newSeatAssignments = { ...seatAssignments };
@@ -232,26 +289,49 @@ const CreateEvent = () => {
         }));
     };
 
-    // Add promo code handling functions
+    const handleVenueRequest = async () => { /* ... */ };
+
+    // Promo code handlers
+    const handlePromoChange = (id, field, value) => {
+        setPromoCodes(prevPromos =>
+            prevPromos.map(promo =>
+                promo.id === id ? { ...promo, [field]: value } : promo
+            )
+        );
+        
+        // Clear errors for this field if value is being updated successfully
+        if (errors.promoCodes && errors.promoCodes[id] && errors.promoCodes[id][field]) {
+            setErrors(prev => ({
+                ...prev,
+                promoCodes: {
+                    ...prev.promoCodes,
+                    [id]: {
+                        ...prev.promoCodes?.[id],
+                        [field]: null
+                    }
+                }
+            }));
+        }
+    };
+
     const addPromoCode = () => {
-        setPromoCodes(prev => [...prev, {
-            code: '',
-            discountType: 'PERCENT',
-            discountValue: '',
-            usageLimit: '',
-            startDate: null,
-            endDate: null
-        }]);
+        const newId = nextPromoId.current;
+        nextPromoId.current += 1;
+        setPromoCodes([...promoCodes, getInitialPromo()]);
     };
 
-    const removePromoCode = (index) => {
-        setPromoCodes(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const updatePromoCode = (index, field, value) => {
-        setPromoCodes(prev => prev.map((promo, i) => 
-            i === index ? { ...promo, [field]: value } : promo
-        ));
+    const removePromoCode = (idToRemove) => {
+        setPromoCodes(promoCodes.filter(promo => promo.id !== idToRemove));
+        
+        // Clean up errors for removed promo
+        if (errors.promoCodes && errors.promoCodes[idToRemove]) {
+            const newPromoErrors = { ...errors.promoCodes };
+            delete newPromoErrors[idToRemove];
+            setErrors(prev => ({
+                ...prev,
+                promoCodes: newPromoErrors
+            }));
+        }
     };
 
     const validateForm = () => {
@@ -299,7 +379,14 @@ const CreateEvent = () => {
                     currentTierErrors.quantity = "Quantity must be a positive integer.";
                     hasTierError = true;
                 } else {
-                    totalTierQuantity += parseInt(tier.quantity, 10);
+                    const quantity = parseInt(tier.quantity, 10);
+                    totalTierQuantity += quantity;
+                    
+                    // Validate individual tier quantity against venue capacity
+                    if (selectedVenue && selectedVenue.capacity > 0 && quantity > selectedVenue.capacity) {
+                        currentTierErrors.quantity = `Tier quantity (${quantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
+                        hasTierError = true;
+                    }
                 }
                 if (Object.keys(currentTierErrors).length > 0) {
                     tierErrors[tier.id] = currentTierErrors;
@@ -310,12 +397,19 @@ const CreateEvent = () => {
             newErrors.ticketTiers = tierErrors; // Store all tier-specific errors
         }
 
-
+        // Validate total ticket quantity against venue capacity
         if (selectedVenue && selectedVenue.capacity > 0 && totalTierQuantity > selectedVenue.capacity) {
-            newErrors.ticketTiersGeneral = `Total quantity of tickets (${totalTierQuantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
+            newErrors.ticketTiersGeneral = `Total ticket quantity (${totalTierQuantity.toLocaleString()}) cannot exceed venue capacity (${selectedVenue.capacity.toLocaleString()}).`;
         }
+        
+        // Special validation for seated venues with zero capacity
         if (selectedVenue && selectedVenue.capacity === 0 && totalTierQuantity > 0 && selectedVenue.isSeated) {
-            newErrors.ticketTiersGeneral = `This seated venue has a capacity of 0. Please check venue details.`;
+            newErrors.ticketTiersGeneral = `This seated venue has a capacity of 0. Please check venue details or contact support.`;
+        }
+        
+        // For non-seated venues, warn if total tickets significantly exceed capacity
+        if (selectedVenue && !selectedVenue.isSeated && selectedVenue.capacity > 0 && totalTierQuantity > selectedVenue.capacity * 1.1) {
+            newErrors.ticketTiersGeneral = `Warning: Total tickets (${totalTierQuantity.toLocaleString()}) significantly exceed venue capacity (${selectedVenue.capacity.toLocaleString()}). This may cause overcrowding.`;
         }
 
         // Validate seat assignments for seated venues
@@ -330,6 +424,72 @@ const CreateEvent = () => {
                 if (invalidAssignments.length > 0) {
                     newErrors.seatAssignments = "Some seat assignments reference invalid tier names.";
                 }
+                
+                // Validate that seat assignments don't exceed ticket quantities
+                const assignmentCounts = {};
+                Object.values(seatAssignments).forEach(tierName => {
+                    assignmentCounts[tierName] = (assignmentCounts[tierName] || 0) + 1;
+                });
+                
+                const overAssignedTiers = [];
+                ticketTiers.forEach(tier => {
+                    const assignedCount = assignmentCounts[tier.tierName] || 0;
+                    const ticketQuantity = parseInt(tier.quantity, 10) || 0;
+                    if (assignedCount > ticketQuantity) {
+                        overAssignedTiers.push(`${tier.tierName} (${assignedCount} seats assigned, ${ticketQuantity} tickets available)`);
+                    }
+                });
+                
+                if (overAssignedTiers.length > 0) {
+                    newErrors.seatAssignments = `The following tiers have more assigned seats than available tickets: ${overAssignedTiers.join(', ')}. Please adjust seat assignments or increase ticket quantities.`;
+                }
+            }
+        }
+
+        // Validate promo codes
+        if (promoCodes.length > 0) {
+            const promoErrors = {};
+            let hasPromoError = false;
+            const usedCodes = new Set();
+            
+            promoCodes.forEach(promo => {
+                const currentPromoErrors = {};
+                
+                if (!promo.code.trim()) {
+                    currentPromoErrors.code = "Promo code is required.";
+                    hasPromoError = true;
+                } else if (usedCodes.has(promo.code.toUpperCase())) {
+                    currentPromoErrors.code = "Duplicate promo code.";
+                    hasPromoError = true;
+                } else {
+                    usedCodes.add(promo.code.toUpperCase());
+                }
+                
+                if (!promo.discountValue || parseFloat(promo.discountValue) <= 0) {
+                    currentPromoErrors.discountValue = "Discount value must be greater than 0.";
+                    hasPromoError = true;
+                } else if (promo.discountType === 'PERCENT' && parseFloat(promo.discountValue) > 100) {
+                    currentPromoErrors.discountValue = "Percentage discount cannot exceed 100%.";
+                    hasPromoError = true;
+                }
+                
+                if (promo.usageLimit && (parseInt(promo.usageLimit, 10) <= 0 || isNaN(parseInt(promo.usageLimit, 10)))) {
+                    currentPromoErrors.usageLimit = "Usage limit must be a positive number.";
+                    hasPromoError = true;
+                }
+                
+                if (promo.startDate && promo.endDate && new Date(promo.endDate) < new Date(promo.startDate)) {
+                    currentPromoErrors.endDate = "End date must be after start date.";
+                    hasPromoError = true;
+                }
+                
+                if (Object.keys(currentPromoErrors).length > 0) {
+                    promoErrors[promo.id] = currentPromoErrors;
+                }
+            });
+            
+            if (hasPromoError) {
+                newErrors.promoCodes = promoErrors;
             }
         }
 
@@ -337,92 +497,24 @@ const CreateEvent = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const validateVenueRequest = () => {
-        const newVRErrors = {};
-        if (!venueRequest.name.trim()) newVRErrors.name = "Venue name is required.";
-        if (!venueRequest.address.trim()) newVRErrors.address = "Address is required.";
-        if (!venueRequest.city.trim()) newVRErrors.city = "City is required.";
-        if (!venueRequest.capacity.trim()) newVRErrors.capacity = "Estimated capacity is required."; // Capacity is TEXT in DB, so simple trim check
-
-        if (venueRequest.is_seated) {
-            if (!venueRequest.requested_layout_rows || parseInt(venueRequest.requested_layout_rows, 10) <= 0) {
-                newVRErrors.requested_layout_rows = "Number of rows must be a positive integer for seated venues.";
-            }
-            if (!venueRequest.requested_layout_cols || parseInt(venueRequest.requested_layout_cols, 10) <= 0) {
-                newVRErrors.requested_layout_cols = "Number of seats per row must be a positive integer for seated venues.";
-            }
-        }
-        setErrors(prev => ({ ...prev, venueRequest: newVRErrors }));
-        return Object.keys(newVRErrors).length === 0;
-    };
-
-    const submitVenueRequest = async () => {
-        if (!validateVenueRequest()) {
-            setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: "Please correct the errors above." }}));
-            return;
-        }
-
-        setIsSubmitting(true);
-        setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: null }}));
-
-        const payload = {
-            name: venueRequest.name,
-            address: venueRequest.address,
-            city: venueRequest.city,
-            capacity: venueRequest.capacity,
-            is_seated: venueRequest.is_seated,
-            notes: venueRequest.description,
-            organizer_account_id: user.account_id,
-        };
-
-        if (venueRequest.is_seated) {
-            payload.requested_layout_rows = parseInt(venueRequest.requested_layout_rows, 10);
-            payload.requested_layout_cols = parseInt(venueRequest.requested_layout_cols, 10);
-        }
-
-        try {
-            console.log(payload);
-            await apiClient.post("/venue/request", payload);
-            toast({
-                title: "Success!",
-                description: "Venue request submitted successfully! An admin will review it shortly.",
-            });
-            setIsVenueDialogOpen(false);
-            setVenueRequest({name: "", address: "", city: "", capacity: "", is_seated: false, requested_layout_rows: '', requested_layout_cols: '', description: ""});
-        } catch (error) {
-            console.error("Error submitting venue request:", error);
-            setErrors(prev => ({ ...prev, venueRequest: { ...prev.venueRequest, form: error.data?.message || "Failed to submit venue request." }}));
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: error.data?.message || "There was an issue submitting your venue request. Please try again.",
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => { /* ... same as before, it correctly strips the 'id' from tiers ... */
         e.preventDefault();
 
         if (!user || !user.account_id) {
             setErrors(prev => ({ ...prev, formApi: "User not authenticated or account ID missing. Cannot create event." }));
-            toast({
-                variant: "destructive",
-                title: "Authentication Error",
-                description: "Please log in again.",
-            });
+            alert("Authentication error. Please log in again.");
             return;
         }
 
+
         if (!validateForm()) {
+            // Let user see inline errors, maybe set a general form error too
             setErrors(prev => ({ ...prev, formApi: "Please correct the errors in the form."}));
             return;
         }
-
-        setIsLoading(true);
         setIsSubmitting(true);
-        setErrors(prev => ({ ...prev, formApi: null }));
+        setErrors(prev => ({ ...prev, formApi: null })); // Clear previous general form error
+
 
         const data = new FormData();
 
@@ -441,14 +533,19 @@ const CreateEvent = () => {
         // Exclude temporary client-side 'id' from each tier object
         data.append('ticketTiersData', JSON.stringify(ticketTiers.map(({ id, ...rest }) => rest)));
 
-        // Add promo codes
-        if (promoCodes.length > 0) {
-            data.append('promoCodes', JSON.stringify(promoCodes));
-        }
-
         // Add seat assignments for seated venues
         if (selectedVenue && selectedVenue.isSeated && Object.keys(seatAssignments).length > 0) {
             data.append('seatAssignments', JSON.stringify(seatAssignments));
+        }
+
+        // Add promo codes if any
+        if (promoCodes.length > 0) {
+            const promoCodesData = promoCodes.map(({ id, ...rest }) => ({
+                ...rest,
+                startDate: rest.startDate ? format(rest.startDate, "yyyy-MM-dd") : null,
+                endDate: rest.endDate ? format(rest.endDate, "yyyy-MM-dd") : null
+            }));
+            data.append('promoCodesString', JSON.stringify(promoCodesData));
         }
 
         formData.images.forEach(imageObj => {
@@ -460,40 +557,18 @@ const CreateEvent = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             console.log("Event created:", response.data);
-            
-            toast({
-                title: "Success!",
-                description: "Event created successfully!",
-            });
-            
-            // Reset the form after successful creation
-            resetForm();
-            
+            alert("Event created successfully!");
+            navigate('/my-events');
         } catch (error) {
             console.error("Error creating event:", error);
             const errorMsg = error.data?.message || error.message || "Error creating event. Please try again.";
-            setErrors(prev => ({ ...prev, formApi: errorMsg }));
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: errorMsg,
-            });
+            setErrors(prev => ({ ...prev, formApi: errorMsg })); // Display API error
+            alert(errorMsg);
         } finally {
-            setIsLoading(false);
             setIsSubmitting(false);
         }
     };
 
-    if (isLoading) {
-        return (
-            <Layout>
-                <div className="flex justify-center items-center h-64">
-                    <Loader2 className="h-16 w-16 animate-spin text-primary" />
-                    <p className="ml-4 text-xl">Creating your event...</p>
-                </div>
-            </Layout>
-        );
-    }
 
     return (
         <Layout>
@@ -502,10 +577,7 @@ const CreateEvent = () => {
                     <h1 className="text-3xl font-bold text-foreground">Create New Event</h1>
                     <p className="text-muted-foreground mt-2">Fill in the details to create your event</p>
                 </div>
-                {/* Conditional rendering for auth/role can be added here if desired */}
-
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Basic Information Card */}
                     <Card>
                         <CardHeader>
                             <CardTitle>Basic Information</CardTitle>
@@ -535,12 +607,11 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Date and Time Card */}
                     <Card>
                         <CardHeader><CardTitle>Date and Time</CardTitle><CardDescription>When will your event take place?</CardDescription></CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Date/Time inputs as provided */}
+
                                 <div className="space-y-2">
                                     <Label>Start Date *</Label>
                                     <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.startDate && "text-muted-foreground", errors.startDate && "border-red-500")}><CalendarIcon className="mr-2 h-4 w-4" />{formData.startDate ? format(formData.startDate, "PPP") : "Pick a date"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.startDate} onSelect={(date) => handleInputChange("startDate", date)} initialFocus /></PopoverContent></Popover>
@@ -565,7 +636,6 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Venue Selection Card */}
                     <Card>
                         <CardHeader><CardTitle>Venue</CardTitle>
                             <CardDescription>
@@ -592,150 +662,10 @@ const CreateEvent = () => {
                                 {errors.venue && <p className="text-sm text-red-500">{errors.venue}</p>}
                                 {errors.venuesApi && <p className="text-sm text-red-500">{errors.venuesApi}</p>}
                             </div>
-                            <Alert><MapPin className="h-4 w-4" /><AlertDescription> Can't find your venue?{" "} <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}><DialogTrigger asChild><Button variant="link" className="p-0 h-auto"> Request a new venue </Button></DialogTrigger><DialogContent> {/* ... Venue Request Dialog ... */} </DialogContent></Dialog> </AlertDescription></Alert>
+                            <Alert><MapPin className="h-4 w-4" /><AlertDescription> Can't find your venue?{" "} <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}><DialogTrigger asChild><Button variant="link" className="p-0 h-auto"> Request a new venue </Button></DialogTrigger><DialogContent> </DialogContent></Dialog> </AlertDescription></Alert>
                         </CardContent>
                     </Card>
 
-                    <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="link" className="p-0 h-auto"> Request a new venue </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] flex flex-col"> {/* Max width and height, flex col */}
-                            <DialogHeader>
-                                <DialogTitle>Request New Venue</DialogTitle>
-                                <DialogDescription>
-                                    Fill in the details for the venue you'd like to request. An admin will review it.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            {/* Scrollable content area */}
-                            <div className="grid gap-4 py-4 overflow-y-auto px-1"> {/* Added overflow-y-auto and some padding */}
-                                {/* Name */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-name" className="text-right">Name *</Label>
-                                    <Input id="vr-name" value={venueRequest.name} onChange={(e) => setVenueRequest(prev => ({ ...prev, name: e.target.value }))} className="col-span-3" placeholder="Venue Name" />
-                                </div>
-                                {errors.venueRequest?.name && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.name}</p>}
-
-                                {/* Address */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-address" className="text-right">Address *</Label>
-                                    <Input id="vr-address" value={venueRequest.address} onChange={(e) => setVenueRequest(prev => ({ ...prev, address: e.target.value }))} className="col-span-3" placeholder="Full Street Address" />
-                                </div>
-                                {errors.venueRequest?.address && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.address}</p>}
-
-                                {/* City */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-city" className="text-right">City *</Label>
-                                    <Input id="vr-city" value={venueRequest.city} onChange={(e) => setVenueRequest(prev => ({ ...prev, city: e.target.value }))} className="col-span-3" placeholder="City" />
-                                </div>
-                                {errors.venueRequest?.city && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.city}</p>}
-
-                                {/* Est. Capacity */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-capacity" className="text-right">Est. Capacity *</Label>
-                                    <Input id="vr-capacity" type="text" value={venueRequest.capacity} onChange={(e) => setVenueRequest(prev => ({ ...prev, capacity: e.target.value }))} className="col-span-3" placeholder="e.g., 500 or 500-700" />
-                                </div>
-                                {errors.venueRequest?.capacity && <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">{errors.venueRequest.capacity}</p>}
-
-                                {/* Seating Type Checkbox */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-is_seated" className="text-right">Seating Type</Label>
-                                    <div className="col-span-3 flex items-center space-x-2">
-                                        <input type="checkbox" id="vr-is_seated" checked={venueRequest.is_seated} onChange={(e) => setVenueRequest(prev => ({ ...prev, is_seated: e.target.checked, requested_layout_rows: e.target.checked ? prev.requested_layout_rows : '', requested_layout_cols: e.target.checked ? prev.requested_layout_cols : ''}))} />
-                                        <Label htmlFor="vr-is_seated">This is a seated venue</Label>
-                                    </div>
-                                </div>
-
-                                {/* Conditional Section for Seated Venue Layout */}
-                                {venueRequest.is_seated && (
-                                    <div className="col-span-4 space-y-4 border-t pt-4 mt-2">
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="vr-rows" className="text-right">Layout Rows *</Label>
-                                            <Input 
-                                                id="vr-rows" 
-                                                type="number" 
-                                                value={venueRequest.requested_layout_rows}
-                                                onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_rows: e.target.value }))}
-                                                className="col-span-3" 
-                                                placeholder="e.g., 10" 
-                                                min="1"
-                                            />
-                                        </div>
-                                        {errors.venueRequest?.requested_layout_rows && (
-                                            <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
-                                                {errors.venueRequest.requested_layout_rows}
-                                            </p>
-                                        )}
-
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="vr-cols" className="text-right">Seats per Row *</Label>
-                                            <Input 
-                                                id="vr-cols" 
-                                                type="number" 
-                                                value={venueRequest.requested_layout_cols}
-                                                onChange={(e) => setVenueRequest(prev => ({ ...prev, requested_layout_cols: e.target.value }))}
-                                                className="col-span-3" 
-                                                placeholder="e.g., 20" 
-                                                min="1"
-                                            />
-                                        </div>
-                                        {errors.venueRequest?.requested_layout_cols && (
-                                            <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
-                                                {errors.venueRequest.requested_layout_cols}
-                                            </p>
-                                        )}
-
-                                        {/* Render the preview if dimensions are valid numbers > 0 */}
-                                        {(parseInt(venueRequest.requested_layout_rows, 10) > 0 && parseInt(venueRequest.requested_layout_cols, 10) > 0) && (
-                                            <div className="col-span-4 mt-2">
-                                                <VenueRequestLayoutPreview
-                                                    rows={parseInt(venueRequest.requested_layout_rows, 10)}
-                                                    cols={parseInt(venueRequest.requested_layout_cols, 10)}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Notes */}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="vr-description" className="text-right">Notes</Label>
-                                    <Textarea 
-                                        id="vr-description" 
-                                        value={venueRequest.description} 
-                                        onChange={(e) => setVenueRequest(prev => ({ ...prev, description: e.target.value }))} 
-                                        className="col-span-3" 
-                                        placeholder="Any additional details or notes..." 
-                                    />
-                                </div>
-                                {errors.venueRequest?.form && (
-                                    <p className="col-start-2 col-span-3 text-sm text-red-500 -mt-2">
-                                        {errors.venueRequest.form}
-                                    </p>
-                                )}
-                            </div>
-
-                            <DialogFooter>
-                                <Button 
-                                    variant="outline" 
-                                    onClick={() => setIsVenueDialogOpen(false)} 
-                                    disabled={isSubmitting}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button 
-                                    onClick={submitVenueRequest} 
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    Submit Request
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Ticket Tiers Pricing Card */}
                     <Card>
                         <CardHeader>
                             <CardTitle>Ticket Tiers & Pricing</CardTitle>
@@ -747,23 +677,56 @@ const CreateEvent = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {errors.ticketTiersGeneral && (
-                                <Alert variant="destructive">
-                                    <AlertDescription>{errors.ticketTiersGeneral}</AlertDescription>
-                                </Alert>
+                            {errors.ticketTiersGeneral && <Alert variant="destructive"><AlertDescription>{errors.ticketTiersGeneral}</AlertDescription></Alert>}
+                            
+
+                            {selectedVenue && selectedVenue.capacity > 0 && (
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="font-medium">Total Tickets vs Venue Capacity:</span>
+                                        <span className={`font-bold ${
+                                            (() => {
+                                                const total = ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                                                return total > selectedVenue.capacity ? 'text-red-600' : 
+                                                       total > selectedVenue.capacity * 0.9 ? 'text-yellow-600' : 'text-green-600';
+                                            })()
+                                        }`}>
+                                            {ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0).toLocaleString()} / {selectedVenue.capacity.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-gray-600 mt-1">
+                                        <span>Remaining capacity:</span>
+                                        <span className="font-medium">
+                                            {Math.max(0, selectedVenue.capacity - ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0)).toLocaleString()} tickets
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                            className={`h-2 rounded-full transition-all duration-300 ${
+                                                (() => {
+                                                    const total = ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0);
+                                                    const percentage = (total / selectedVenue.capacity) * 100;
+                                                    return percentage > 100 ? 'bg-red-500' : 
+                                                           percentage > 90 ? 'bg-yellow-500' : 'bg-green-500';
+                                                })()
+                                            }`}
+                                            style={{
+                                                width: `${Math.min(
+                                                    (ticketTiers.reduce((sum, tier) => sum + (parseInt(tier.quantity, 10) || 0), 0) / selectedVenue.capacity) * 100,
+                                                    100
+                                                )}%`
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             )}
+                            
                             {ticketTiers.map((tier, index) => (
                                 <Card key={tier.id} className="p-4 space-y-3 bg-muted/40">
                                     <div className="flex justify-between items-center">
                                         <Label className="text-base font-semibold">Tier {index + 1}</Label>
                                         {ticketTiers.length > 1 && (
-                                            <Button 
-                                                type="button" 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                onClick={() => removeTier(tier.id)} 
-                                                className="text-red-500 hover:text-red-700"
-                                            >
+                                            <Button type="button" variant="ghost" size="sm" onClick={() => removeTier(tier.id)} className="text-red-500 hover:text-red-700">
                                                 <Trash2 className="h-4 w-4 mr-1" /> Remove
                                             </Button>
                                         )}
@@ -778,11 +741,7 @@ const CreateEvent = () => {
                                                 placeholder="e.g., General, VIP"
                                                 className={errors.ticketTiers?.[tier.id]?.tierName ? "border-red-500" : ""}
                                             />
-                                            {errors.ticketTiers?.[tier.id]?.tierName && (
-                                                <p className="text-xs text-red-500 mt-1">
-                                                    {errors.ticketTiers[tier.id].tierName}
-                                                </p>
-                                            )}
+                                            {errors.ticketTiers?.[tier.id]?.tierName && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].tierName}</p>}
                                         </div>
                                         <div className="space-y-1 md:col-span-1">
                                             <Label htmlFor={`price-${tier.id}`}>Price (USD) *</Label>
@@ -799,11 +758,7 @@ const CreateEvent = () => {
                                                     className={`pl-8 ${errors.ticketTiers?.[tier.id]?.price ? "border-red-500" : ""}`}
                                                 />
                                             </div>
-                                            {errors.ticketTiers?.[tier.id]?.price && (
-                                                <p className="text-xs text-red-500 mt-1">
-                                                    {errors.ticketTiers[tier.id].price}
-                                                </p>
-                                            )}
+                                            {errors.ticketTiers?.[tier.id]?.price && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].price}</p>}
                                         </div>
                                         <div className="space-y-1 md:col-span-1">
                                             <Label htmlFor={`quantity-${tier.id}`}>Quantity *</Label>
@@ -814,33 +769,35 @@ const CreateEvent = () => {
                                                     type="number"
                                                     value={tier.quantity}
                                                     onChange={(e) => handleTierChange(tier.id, 'quantity', e.target.value)}
+                                                    onInput={(e) => {
+                                                        // Prevent typing values that exceed remaining venue capacity
+                                                        if (selectedVenue && selectedVenue.capacity > 0) {
+                                                            const inputValue = parseInt(e.target.value, 10);
+                                                            const remainingCapacity = getRemainingCapacity(tier.id);
+                                                            
+                                                            if (!isNaN(inputValue) && inputValue > remainingCapacity) {
+                                                                e.target.value = remainingCapacity.toString();
+                                                            }
+                                                        }
+                                                    }}
                                                     placeholder="0"
                                                     min="1"
+                                                    max={selectedVenue && selectedVenue.capacity > 0 ? getRemainingCapacity(tier.id) : undefined}
                                                     step="1"
                                                     className={`pl-8 ${errors.ticketTiers?.[tier.id]?.quantity ? "border-red-500" : ""}`}
                                                 />
                                             </div>
-                                            {errors.ticketTiers?.[tier.id]?.quantity && (
-                                                <p className="text-xs text-red-500 mt-1">
-                                                    {errors.ticketTiers[tier.id].quantity}
-                                                </p>
-                                            )}
+                                            {errors.ticketTiers?.[tier.id]?.quantity && <p className="text-xs text-red-500 mt-1">{errors.ticketTiers[tier.id].quantity}</p>}
                                         </div>
                                     </div>
                                 </Card>
                             ))}
-                            <Button 
-                                type="button" 
-                                variant="outline" 
-                                onClick={addTier} 
-                                className="w-full mt-2"
-                            >
+                            <Button type="button" variant="outline" onClick={addTier} className="w-full mt-2">
                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Tier
                             </Button>
                         </CardContent>
                     </Card>
 
-                    {/* Seat Assignment Card - only show for seated venues */}
                     {selectedVenue && selectedVenue.isSeated && (
                         <SeatAssignment 
                             selectedVenue={selectedVenue}
@@ -851,51 +808,221 @@ const CreateEvent = () => {
                         />
                     )}
 
-                    {/* Event Images Card */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Event Images</CardTitle>
-                            <CardDescription>Upload at least one image for your event</CardDescription>
+                            <CardTitle>Promo Codes (Optional)</CardTitle>
+                            <CardDescription>
+                                Create discount codes for your event. These codes can be used by attendees to get discounts on ticket purchases.
+                            </CardDescription>
                         </CardHeader>
+                        <CardContent className="space-y-4">
+                            {promoCodes.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <Tag className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                                    <p>No promo codes created yet.</p>
+                                    <p className="text-sm">Click "Add Promo Code" to create discount codes for your event.</p>
+                                </div>
+                            ) : (
+                                promoCodes.map((promo, index) => (
+                                    <Card key={promo.id} className="p-4 space-y-4 bg-muted/40">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-base font-semibold">Promo Code {index + 1}</Label>
+                                            <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                onClick={() => removePromoCode(promo.id)} 
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-1" /> Remove
+                                            </Button>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`promoCode-${promo.id}`}>Code *</Label>
+                                                <div className="relative">
+                                                    <Tag className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        id={`promoCode-${promo.id}`}
+                                                        value={promo.code}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'code', e.target.value.toUpperCase())}
+                                                        placeholder="SAVE20"
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.code ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.code && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].code}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label>Discount Type *</Label>
+                                                <Select 
+                                                    value={promo.discountType} 
+                                                    onValueChange={(value) => handlePromoChange(promo.id, 'discountType', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="PERCENT">Percentage (%)</SelectItem>
+                                                        <SelectItem value="FIXED">Fixed Amount ($)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`discountValue-${promo.id}`}>
+                                                    Discount Value * {promo.discountType === 'PERCENT' ? '(%)' : '($)'}
+                                                </Label>
+                                                <div className="relative">
+                                                    {promo.discountType === 'PERCENT' ? (
+                                                        <Percent className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    ) : (
+                                                        <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                    <Input
+                                                        id={`discountValue-${promo.id}`}
+                                                        type="number"
+                                                        value={promo.discountValue}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'discountValue', e.target.value)}
+                                                        placeholder={promo.discountType === 'PERCENT' ? "20" : "10.00"}
+                                                        step={promo.discountType === 'PERCENT' ? "1" : "0.01"}
+                                                        min="0"
+                                                        max={promo.discountType === 'PERCENT' ? "100" : undefined}
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.discountValue ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.discountValue && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].discountValue}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`usageLimit-${promo.id}`}>Usage Limit</Label>
+                                                <div className="relative">
+                                                    <Hash className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        id={`usageLimit-${promo.id}`}
+                                                        type="number"
+                                                        value={promo.usageLimit}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'usageLimit', e.target.value)}
+                                                        placeholder="100 (optional)"
+                                                        min="1"
+                                                        step="1"
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.usageLimit ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.usageLimit && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].usageLimit}</p>
+                                                )}
+                                                <p className="text-xs text-muted-foreground">Leave empty for unlimited uses</p>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label>Start Date (Optional)</Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={cn(
+                                                                "w-full justify-start text-left font-normal",
+                                                                !promo.startDate && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {promo.startDate ? format(promo.startDate, "PPP") : "Select start date"}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar 
+                                                            mode="single" 
+                                                            selected={promo.startDate} 
+                                                            onSelect={(date) => handlePromoChange(promo.id, 'startDate', date)} 
+                                                            initialFocus 
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label>End Date (Optional)</Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={cn(
+                                                                "w-full justify-start text-left font-normal",
+                                                                !promo.endDate && "text-muted-foreground",
+                                                                errors.promoCodes?.[promo.id]?.endDate && "border-red-500"
+                                                            )}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {promo.endDate ? format(promo.endDate, "PPP") : "Select end date"}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar 
+                                                            mode="single" 
+                                                            selected={promo.endDate} 
+                                                            onSelect={(date) => handlePromoChange(promo.id, 'endDate', date)} 
+                                                            initialFocus 
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                                {errors.promoCodes?.[promo.id]?.endDate && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].endDate}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="text-sm">
+                                                <span className="font-medium">Preview: </span>
+                                                {promo.code && promo.discountValue ? (
+                                                    <span className="text-blue-700">
+                                                        Code "{promo.code}" gives {promo.discountType === 'PERCENT' ? `${promo.discountValue}%` : `$${promo.discountValue}`} off
+                                                        {promo.usageLimit && ` (limited to ${promo.usageLimit} uses)`}
+                                                        {promo.startDate && ` starting ${format(promo.startDate, "MMM d, yyyy")}`}
+                                                        {promo.endDate && ` until ${format(promo.endDate, "MMM d, yyyy")}`}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">Complete the fields above to see preview</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))
+                            )}
+                            
+                            <Button type="button" variant="outline" onClick={addPromoCode} className="w-full mt-4">
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Promo Code
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    {/* Event Images Card */}
+                    <Card>
+                        <CardHeader><CardTitle>Event Images</CardTitle><CardDescription>Upload at least one image for your event</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="images">Upload Images *</Label>
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    <input 
-                                        id="images" 
-                                        type="file" 
-                                        multiple 
-                                        accept="image/*" 
-                                        onChange={handleImageUpload} 
-                                        className="hidden" 
-                                    />
+                                    <input id="images" type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
                                     <Label htmlFor="images" className="cursor-pointer">
                                         <Upload className="mx-auto h-12 w-12 text-gray-400" />
                                         <p className="mt-2 text-sm text-gray-600">Click to upload or drag and drop</p>
                                     </Label>
                                 </div>
-                                {errors.images && (
-                                    <p className="text-sm text-red-500">{errors.images}</p>
-                                )}
+                                {errors.images && <p className="text-sm text-red-500">{errors.images}</p>}
                             </div>
                             {formData.images.length > 0 && (
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     {formData.images.map((image) => (
                                         <div key={image.id} className="relative group">
-                                            <img 
-                                                src={image.url || "/placeholder.svg"} 
-                                                alt={image.name} 
-                                                className="w-full h-32 object-cover rounded-lg" 
-                                            />
-                                            <Button 
-                                                type="button" 
-                                                variant="destructive" 
-                                                size="icon" 
-                                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" 
-                                                onClick={() => removeImage(image.id)}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
+                                            <img src={image.url || "/placeholder.svg"} alt={image.name} className="w-full h-32 object-cover rounded-lg" />
+                                            <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeImage(image.id)}> <X className="h-4 w-4" /> </Button>
                                         </div>
                                     ))}
                                 </div>
@@ -903,169 +1030,23 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
+
                     {/* Additional Information Card */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Additional Information</CardTitle>
-                        </CardHeader>
+                        <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
                                 <Label htmlFor="rules">Event Rules</Label>
-                                <Textarea 
-                                    id="rules" 
-                                    value={formData.rules} 
-                                    onChange={(e) => handleInputChange("rules", e.target.value)} 
-                                    placeholder="List any rules or guidelines for attendees" 
-                                    rows={3} 
-                                />
+                                <Textarea id="rules" value={formData.rules} onChange={(e) => handleInputChange("rules", e.target.value)} placeholder="List any rules or guidelines for attendees" rows={3} />
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Promo Codes Card */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Tag className="h-5 w-5" />
-                                Promo Codes
-                            </CardTitle>
-                            <CardDescription>Create promotional codes for your event</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {promoCodes.map((promo, index) => (
-                                <div key={index} className="p-4 border rounded-lg space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="font-medium">Promo Code {index + 1}</h4>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removePromoCode(index)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label>Code *</Label>
-                                            <Input
-                                                placeholder="Enter promo code"
-                                                value={promo.code}
-                                                onChange={(e) => updatePromoCode(index, 'code', e.target.value.toUpperCase())}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Discount Type *</Label>
-                                            <Select
-                                                value={promo.discountType}
-                                                onValueChange={(value) => updatePromoCode(index, 'discountType', value)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select discount type" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="PERCENT">Percentage</SelectItem>
-                                                    <SelectItem value="FIXED">Fixed Amount</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Discount Value *</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder={promo.discountType === 'PERCENT' ? "Enter percentage" : "Enter amount"}
-                                                value={promo.discountValue}
-                                                onChange={(e) => updatePromoCode(index, 'discountValue', e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Usage Limit</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="Enter usage limit (optional)"
-                                                value={promo.usageLimit}
-                                                onChange={(e) => updatePromoCode(index, 'usageLimit', e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Start Date</Label>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        className={cn(
-                                                            "w-full justify-start text-left font-normal",
-                                                            !promo.startDate && "text-muted-foreground"
-                                                        )}
-                                                    >
-                                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                                        {promo.startDate ? format(promo.startDate, "PPP") : "Pick a date"}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0">
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={promo.startDate}
-                                                        onSelect={(date) => updatePromoCode(index, 'startDate', date)}
-                                                        initialFocus
-                                                    />
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>End Date</Label>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        className={cn(
-                                                            "w-full justify-start text-left font-normal",
-                                                            !promo.endDate && "text-muted-foreground"
-                                                        )}
-                                                    >
-                                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                                        {promo.endDate ? format(promo.endDate, "PPP") : "Pick a date"}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0">
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={promo.endDate}
-                                                        onSelect={(date) => updatePromoCode(index, 'endDate', date)}
-                                                        initialFocus
-                                                    />
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={addPromoCode}
-                                className="w-full"
-                            >
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Promo Code
-                            </Button>
-                        </CardContent>
-                    </Card>
-
                     {/* Submit Button */}
-                    {errors.formApi && (
-                        <Alert variant="destructive" className="mt-4">
-                            <AlertDescription>{errors.formApi}</AlertDescription>
-                        </Alert>
-                    )}
+                    {errors.formApi && (<Alert variant="destructive" className="mt-4"><AlertDescription>{errors.formApi}</AlertDescription></Alert>)}
                     <div className="flex justify-end gap-4">
-                        <Button type="button" variant="outline" asChild>
-                            <Link to="/my-events">Cancel</Link>
-                        </Button>
-                        <Button 
-                            type="submit" 
-                            disabled={isSubmitting || !user || user.role !== 'organizer'}
-                        >
-                            {isSubmitting ? "Creating Event..." : "Create Event"}
-                        </Button>
+                        <Button type="button" variant="outline" asChild> <Link to="/my-events">Cancel</Link> </Button>
+                        <Button type="submit" disabled={isSubmitting || !user || user.role !== 'organizer'}> {isSubmitting ? "Creating Event..." : "Create Event"} </Button>
                     </div>
                 </form>
             </div>

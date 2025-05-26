@@ -3,13 +3,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Create reusable transporter object using SMTP transport
 const createTransporter = () => {
-  // For development, you can use Gmail with app passwords or a service like Ethereal
-  // For production, use a proper email service like SendGrid, AWS SES, etc.
-  
   if (process.env.NODE_ENV === 'production') {
-    // Production email configuration
     return nodemailer.createTransporter({
       service: process.env.EMAIL_SERVICE || 'gmail',
       auth: {
@@ -18,8 +13,6 @@ const createTransporter = () => {
       }
     });
   } else {
-    // Development configuration - using Gmail for testing
-    // You'll need to set up app passwords in Gmail for this to work
     return nodemailer.createTransporter({
       service: 'gmail',
       auth: {
@@ -30,7 +23,6 @@ const createTransporter = () => {
   }
 };
 
-// Generic email sending function
 export const sendEmail = async (to, subject, htmlContent, textContent = null) => {
   try {
     const transporter = createTransporter();
@@ -40,7 +32,7 @@ export const sendEmail = async (to, subject, htmlContent, textContent = null) =>
       to: to,
       subject: subject,
       html: htmlContent,
-      text: textContent || htmlContent.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      text: textContent || htmlContent.replace(/<[^>]*>/g, '')
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -52,7 +44,6 @@ export const sendEmail = async (to, subject, htmlContent, textContent = null) =>
   }
 };
 
-// Simplified ticket confirmation email with PDF attachment
 export const sendTicketConfirmationEmailWithPDF = async (emailData) => {
   const { 
     email, 
@@ -61,7 +52,7 @@ export const sendTicketConfirmationEmailWithPDF = async (emailData) => {
     totalAmount, 
     transactionId,
     ticketCount,
-    pdfAttachments // Array of { filename, content } objects
+    pdfAttachments
   } = emailData;
 
   const subject = `Your Tickets for ${eventName} - Confirmation`;
@@ -151,7 +142,6 @@ export const sendTicketConfirmationEmailWithPDF = async (emailData) => {
     </html>
   `;
 
-  // Prepare mail options with attachments
   const transporter = createTransporter();
   
   const mailOptions = {
@@ -159,7 +149,7 @@ export const sendTicketConfirmationEmailWithPDF = async (emailData) => {
     to: email,
     subject: subject,
     html: htmlContent,
-    text: htmlContent.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+    text: htmlContent.replace(/<[^>]*>/g, ''),
     attachments: pdfAttachments || []
   };
 
@@ -173,7 +163,6 @@ export const sendTicketConfirmationEmailWithPDF = async (emailData) => {
   }
 };
 
-// Password reset email template (for future use)
 export const sendPasswordResetEmail = async (email, resetToken, userName) => {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
   
@@ -232,7 +221,6 @@ export const sendPasswordResetEmail = async (email, resetToken, userName) => {
   return await sendEmail(email, subject, htmlContent);
 };
 
-// Test email function for development
 export const sendTestEmail = async (to) => {
   const subject = 'Test Email - EventBooking Platform';
   const htmlContent = `
