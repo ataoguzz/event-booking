@@ -82,6 +82,24 @@ export default function Dashboard() {
           </Select>
         </div>
 
+        <Button
+          variant="outline"
+          onClick={async () => {
+            const response = await apiClient.get('/admin/dashboardReport', {
+              responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'dashboard_report.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          }}
+        >
+          Take Report
+        </Button>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
