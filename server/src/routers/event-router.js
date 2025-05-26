@@ -8,6 +8,7 @@ export const eventRouter = express.Router();
 
 // ATTENDEE
 eventRouter.get("/", getEvents);
+eventRouter.get("/organizer/:id", getOrganizerEvents);
 eventRouter.get("/:eventId/details", getEventDetails);
 eventRouter.get("/:eventId/seats", getEventSeats);
 eventRouter.post("/:eventId/purchase", checkAuth, purchaseTickets);

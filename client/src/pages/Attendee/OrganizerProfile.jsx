@@ -24,38 +24,26 @@ export default function OrganizerProfile() {
                      window.location.origin.replace(/:\d+$/, ':3001');
 
   useEffect(() => {
-    // Load public organizer data
-    const loadPublicProfile = async () => {
+    const fetchOrganizerProfile = async () => {
       try {
         setIsLoading(true);
-        const data = await organizerService.getPublicProfile(id);
-        
-        if (data) {
-          console.log("Organizer data received:", data);
-          setOrganizer(data);
-          setIsFollowing(data.is_following);
-        } else {
-          console.error("No data received from organizer profile API");
-          toast({
-            title: "Error",
-            description: "No data received from server. Please try again.",
-            variant: "destructive"
-          });
-        }
+        const response = await organizerService.getPublicProfile(id);
+        setOrganizer(response);
+        setIsFollowing(response.is_following);
       } catch (error) {
-        console.error('Failed to load organizer profile:', error);
+        console.error('Error fetching organizer profile:', error);
         toast({
+          variant: "destructive",
           title: "Error",
-          description: error.message || "Failed to load organizer profile. Please try again.",
-          variant: "destructive"
+          description: "Failed to load organizer profile"
         });
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     if (id) {
-      loadPublicProfile();
+      fetchOrganizerProfile();
     }
   }, [id, toast]);
 
@@ -63,7 +51,7 @@ export default function OrganizerProfile() {
     if (!user) {
       toast({
         title: "Authentication Required",
-        description: "Please log in to follow organizers.",
+        description: "Please log in to follow organizers",
         variant: "destructive"
       });
       return;
@@ -71,24 +59,35 @@ export default function OrganizerProfile() {
 
     try {
       setIsFollowingLoading(true);
-      await organizerService.toggleFollow(organizer.account_id, isFollowing);
-      
+      if (isFollowing) {
+        await organizerService.unfollowOrganizer(id);
+        setOrganizer(prev => ({
+          ...prev,
+          followers_count: prev.followers_count - 1,
+          is_following: false
+        }));
+      } else {
+        await organizerService.followOrganizer(id);
+        setOrganizer(prev => ({
+          ...prev,
+          followers_count: prev.followers_count + 1,
+          is_following: true
+        }));
+      }
       setIsFollowing(!isFollowing);
-      setOrganizer(prev => ({
-        ...prev,
-        followers_count: prev.followers_count + (isFollowing ? -1 : 1)
-      }));
       
       toast({
         title: isFollowing ? "Unfollowed" : "Following",
-        description: `You are ${isFollowing ? 'no longer following' : 'now following'} ${organizer.display_name}`,
+        description: isFollowing 
+          ? `You are no longer following ${organizer.display_name}`
+          : `You are now following ${organizer.display_name}`
       });
     } catch (error) {
-      console.error('Failed to toggle follow:', error);
+      console.error('Error toggling follow status:', error);
       toast({
+        variant: "destructive",
         title: "Error",
-        description: `Failed to ${isFollowing ? 'unfollow' : 'follow'} organizer. Please try again.`,
-        variant: "destructive"
+        description: "Failed to update follow status"
       });
     } finally {
       setIsFollowingLoading(false);
@@ -99,7 +98,12 @@ export default function OrganizerProfile() {
     return (
       <Layout>
         <div className="container mx-auto py-10">
-          <p className="text-center">Loading organizer profile...</p>
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading organizer profile...</p>
+            </div>
+          </div>
         </div>
       </Layout>
     );
@@ -109,61 +113,44 @@ export default function OrganizerProfile() {
     return (
       <Layout>
         <div className="container mx-auto py-10">
-          <Card className="text-center p-6">
-            <CardTitle className="mb-4">Organizer Not Found</CardTitle>
-            <CardDescription>
-              The organizer profile you're looking for doesn't exist or has been removed.
-            </CardDescription>
-            <Link to="/find-organizers" className={cn(buttonVariants({ className: "mt-4" }))}>
-              Browse Organizers
-            </Link>
-          </Card>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-2">Not Found</h2>
+            <p className="text-muted-foreground">This organizer profile could not be found.</p>
+          </div>
         </div>
       </Layout>
     );
   }
 
-  // Ensure avatar URL is absolute
-  const displayAvatarUrl = organizer.avatar_url && organizer.avatar_url.startsWith('/uploads/')
-    ? `${apiBaseUrl}${organizer.avatar_url}`
-    : organizer.avatar_url || "https://meyersroman.com/wp-content/uploads/2024/08/Blank-Avatar-Placeholder.png";
-
   return (
     <Layout>
-      <div className="container mx-auto py-10 px-4">
-        <div className="mb-6">
-          <Link to="/find-organizers" className={cn(buttonVariants({ variant: "outline", className: "mb-4" }))}>
-            ← Back to Organizers
-          </Link>
-        </div>
-        
-        <h1 className="text-3xl font-bold mb-6">{organizer.display_name}</h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="container mx-auto py-10">
+        <div className="grid gap-6 lg:grid-cols-3">
           {/* Profile Card */}
           <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <Avatar className="w-24 h-24 border">
-                <AvatarImage src={displayAvatarUrl} />
-                <AvatarFallback>
-                  <UserIcon className="h-12 w-12" />
-                </AvatarFallback>
+            <CardHeader className="flex flex-row items-center gap-4">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={organizer.avatar_url} />
+                <AvatarFallback>{organizer.display_name.substring(0, 2)}</AvatarFallback>
               </Avatar>
-              <div className="space-y-1 flex-1">
+              <div className="flex-1">
                 <CardTitle className="text-2xl">{organizer.display_name}</CardTitle>
-                <CardDescription className="flex items-center">
-                  <div className="flex items-center mr-4">
-                    <StarIcon className="h-4 w-4 text-yellow-500 mr-1" />
+                <div className="flex items-center gap-4 mt-2 text-muted-foreground">
+                  <div className="flex items-center">
+                    <StarIcon className="h-4 w-4 mr-1 text-yellow-500" />
                     <span>{organizer.avg_rating || "0.0"}</span>
                   </div>
-                  <span>{organizer.followers_count || 0} followers</span>
-                </CardDescription>
+                  <div className="flex items-center">
+                    <UserIcon className="h-4 w-4 mr-1" />
+                    <span>{organizer.followers_count} followers</span>
+                  </div>
+                </div>
               </div>
-              <Button 
-                className="whitespace-nowrap"
+              <Button
                 onClick={handleFollowToggle}
+                variant={isFollowing ? "outline" : "default"}
                 disabled={isFollowingLoading}
-                variant={isFollowing ? "default" : "secondary"}
+                className="ml-auto"
               >
                 {isFollowing ? (
                   <>
@@ -181,9 +168,9 @@ export default function OrganizerProfile() {
             <CardContent className="space-y-4">
               <div>
                 <h3 className="text-lg font-medium mb-2">About</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">
+                <div className="text-muted-foreground whitespace-pre-wrap">
                   {organizer.bio || "No bio information provided."}
-                </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -240,24 +227,26 @@ export default function OrganizerProfile() {
                     <CardHeader>
                       <CardTitle className="line-clamp-2">{event.title}</CardTitle>
                       <CardDescription>
-                        <div className="flex items-center gap-1">
-                          <CalendarDays size={14} />
-                          <span>
-                            {new Date(event.start_at).toLocaleString('en-US', {
-                              month: 'long',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit'
-                            })}
+                        <span className="flex flex-col gap-2">
+                          <span className="flex items-center gap-1">
+                            <CalendarDays size={14} />
+                            <span>
+                              {new Date(event.start_at).toLocaleString('en-US', {
+                                month: 'long',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </span>
                           </span>
-                        </div>
-                        {event.venue_name && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <MapPin size={14} />
-                            <span>{event.venue_name}</span>
-                          </div>
-                        )}
+                          {event.venue_name && (
+                            <span className="flex items-center gap-1">
+                              <MapPin size={14} />
+                              <span>{event.venue_name}</span>
+                            </span>
+                          )}
+                        </span>
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -275,25 +264,16 @@ export default function OrganizerProfile() {
           </div>
         )}
 
-        {/* Follow/Unfollow Button */}
-        <div className="flex justify-center">
-          <Button
-            onClick={handleFollowToggle}
-            variant={isFollowing ? "outline" : "default"}
-            className="mt-4"
-          >
-            {isFollowing ? 'Unfollow' : 'Follow'} {organizer.display_name}
-          </Button>
-        </div>
-
         {/* View All Events Button */}
-        <Link
-          to={`/organizers/${id}/events`}
-          className={cn(buttonVariants({ variant: "outline", className: "mb-4" }))}
-        >
-          View All Events
-        </Link>
+        <div className="flex justify-center mt-8">
+          <Link
+            to={`/organizers/${id}/events`}
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            View All Events
+          </Link>
+        </div>
       </div>
     </Layout>
   );
-} 
+}

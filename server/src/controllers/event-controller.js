@@ -1042,34 +1042,92 @@ export const createEvent = async (req, res, next) => {
 
 
 export const getOrganizerEvents = async (req, res, next) => {
-    // This route should be protected by your `checkAuth` middleware.
-    const { organizerAccountId } = req.body;
+    // Get organizer ID either from request body (POST) or URL params (GET)
+    const organizerAccountId = req.body.organizerAccountId || req.params.id;
+
+    console.log('Getting events for organizer:', organizerAccountId);
 
     if (!organizerAccountId) {
-        return res.status(400).json({ message: "Organizer Account ID is required in the request body." });
+        return res.status(400).json({ message: "Organizer Account ID is required." });
     }
 
     const parsedOrganizerAccountId = parseInt(organizerAccountId, 10);
     if (isNaN(parsedOrganizerAccountId) || parsedOrganizerAccountId <= 0) {
-        return res.status(400).json({ message: "Invalid Organizer Account ID format in request body." });
+        return res.status(400).json({ message: "Invalid Organizer Account ID format." });
     }
 
     const client = await getClient();
     try {
         const eventsQuery = `
+            WITH event_reviews AS (
+                SELECT 
+                    event_id,
+                    COALESCE(AVG(stars)::NUMERIC(2,1), 0) as average_rating,
+                    COUNT(*) as review_count
+                FROM reviews
+                GROUP BY event_id
+            ),
+            event_tickets AS (
+                SELECT 
+                    event_id,
+                    COUNT(*) FILTER (WHERE status = 'PURCHASED') as tickets_sold,
+                    COUNT(*) as total_tickets
+                FROM tickets
+                GROUP BY event_id
+            )
             SELECT
-                e.event_id, e.title, e.description, e.category, e.status,
-                e.start_at, e.end_at, e.base_price, e.tickets_sold, e.hero_image_url,
-                v.name AS venue_name, v.city AS venue_city, v.capacity AS venue_capacity
+                e.event_id, 
+                e.title, 
+                e.description, 
+                e.category::text as category, 
+                e.start_at, 
+                e.end_at, 
+                CASE 
+                    WHEN e.end_at < NOW() THEN 'COMPLETED'
+                    WHEN e.start_at > NOW() THEN 'UPCOMING'
+                    ELSE 'ONGOING'
+                END AS status,
+                e.base_price, 
+                COALESCE(et.tickets_sold, 0) as tickets_sold,
+                COALESCE(et.total_tickets, 0) as total_tickets,
+                e.hero_image_url,
+                v.name AS venue_name, 
+                v.city AS venue_city, 
+                v.capacity AS venue_capacity,
+                COALESCE(er.average_rating, 0) as average_rating,
+                COALESCE(er.review_count, 0) as review_count
             FROM events e
-            JOIN venues v ON e.venue_id = v.venue_id
+            LEFT JOIN venues v ON e.venue_id = v.venue_id
+            LEFT JOIN event_reviews er ON er.event_id = e.event_id
+            LEFT JOIN event_tickets et ON et.event_id = e.event_id
             WHERE e.organizer_account_id = $1
-            ORDER BY e.start_at DESC;
+            ORDER BY 
+                CASE 
+                    WHEN e.end_at < NOW() THEN 2
+                    WHEN e.start_at <= NOW() AND e.end_at >= NOW() THEN 0
+                    ELSE 1
+                END,
+                e.start_at DESC;
         `;
+        
         const { rows } = await client.query(eventsQuery, [parsedOrganizerAccountId]);
+        
+        // Log the results for debugging
+        console.log(`Found ${rows.length} events for organizer ${parsedOrganizerAccountId}`);
+        rows.forEach(event => {
+            console.log(`Event ${event.event_id}: ${event.title}`);
+            console.log(`  Status: ${event.status}`);
+            console.log(`  Start: ${event.start_at}`);
+            console.log(`  End: ${event.end_at}`);
+            console.log(`  Average Rating: ${event.average_rating}`);
+            console.log(`  Review Count: ${event.review_count}`);
+            console.log(`  Tickets Sold: ${event.tickets_sold}`);
+            console.log(`  Total Tickets: ${event.total_tickets}`);
+        });
+
         res.status(200).json(rows);
     } catch (error) {
-        console.error(`Error fetching events for organizer ${parsedOrganizerAccountId} via POST:`, error);
+        console.error(`Error fetching events for organizer ${parsedOrganizerAccountId}:`, error);
         next(error);
     } finally {
         if (client) {

@@ -25,77 +25,44 @@ export const getOrganizers = async (req, res) => {
       const offset = (page - 1) * limit;
   
       const q = `
-      WITH upcoming AS (
-        SELECT DISTINCT ON (e.organizer_account_id)
-               e.organizer_account_id,
-               e.event_id,
-               e.title,
-               e.start_at,
-               ei.url AS cover_url
-        FROM   events e
-        LEFT   JOIN LATERAL (
-                 SELECT url
-                 FROM   event_images
-                 WHERE  event_id = e.event_id
-                 LIMIT  1
-               ) ei ON TRUE
-        WHERE  e.status = 'PUBLISHED'
-          AND  e.start_at >= NOW()
-        ORDER  BY e.organizer_account_id, e.start_at
-      ),
+        WITH event_stats AS (
+          SELECT 
+            organizer_account_id,
+            COUNT(*) as total_events,
+            COUNT(*) FILTER (WHERE start_at > NOW() AND status = 'PUBLISHED') as upcoming_events
+          FROM events
+          GROUP BY organizer_account_id
+        )
+        SELECT 
+          o.account_id,
+          o.display_name,
+          o.avatar_url,
+          o.bio,
+          o.followers_count,
+          o.avg_rating as average_rating,
+          COALESCE(es.total_events, 0) as event_count,
+          COALESCE(es.upcoming_events, 0) as upcoming_events
+        FROM organizers o
+        LEFT JOIN event_stats es ON es.organizer_account_id = o.account_id
+        WHERE ($1::TEXT IS NULL 
+          OR o.display_name ILIKE '%' || $1 || '%' 
+          OR o.bio ILIKE '%' || $1 || '%')
+        ORDER BY 
+          CASE WHEN $2 = 'popular' THEN o.followers_count END DESC NULLS LAST,
+          CASE WHEN $2 = 'rating' THEN o.avg_rating END DESC NULLS LAST,
+          CASE WHEN $2 = 'events' THEN es.total_events END DESC NULLS LAST,
+          CASE WHEN $2 = 'upcoming' THEN es.upcoming_events END DESC NULLS LAST,
+          o.display_name ASC
+        LIMIT $3 OFFSET $4`;
   
-      base AS (
-        SELECT  o.account_id,
-                o.display_name,
-                o.avatar_url,
-                o.bio,
-                o.avg_rating,
-                o.followers_count,
-                json_build_object(
-                  'event_id', up.event_id,
-                  'title'   , up.title,
-                  'date'    , up.start_at,
-                  'cover_url', up.cover_url
-                )                           AS featured_event,
-                (
-                  SELECT COUNT(*)
-                  FROM   events e2
-                  WHERE  e2.organizer_account_id = o.account_id
-                )                           AS event_count
-        FROM    organizers o
-        LEFT    JOIN upcoming up
-                ON up.organizer_account_id = o.account_id
-        WHERE   (
-                  $1::TEXT IS NULL OR
-                  o.display_name ILIKE '%'||$1||'%' OR
-                  o.bio          ILIKE '%'||$1||'%'
-                )
-      )
-  
-      SELECT *
-      FROM   base
-      ORDER  BY
-             CASE WHEN $2 = 'popular'  THEN followers_count END DESC NULLS LAST,
-             CASE WHEN $2 = 'rating'   THEN avg_rating      END DESC NULLS LAST,
-             CASE WHEN $2 = 'events'   THEN event_count     END DESC NULLS LAST,
-             CASE WHEN $2 = 'upcoming' THEN (featured_event->>'date')::timestamptz END ASC NULLS LAST,
-             display_name
-      LIMIT  $3 OFFSET $4;
-      `;
-  
-      const { rows } = await query(q, [
-        search,   // $1
-        sort,     // $2
-        limit,    // $3
-        offset    // $4
-      ]);
-  
+      const { rows } = await query(q, [search, sort, limit, offset]);
       res.json(rows);
+  
     } catch (err) {
       console.error('Error in getOrganizers:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: 'Failed to fetch organizers', details: err.message });
     }
-  };
+};
 
 
 export const getFollowing = async (req, res) => {

@@ -28,6 +28,24 @@ export default function AttendeeOrganizerProfile() {
           apiClient.get(`/users/organizers/following`)
         ]);
 
+        console.log('Raw events data:', eventsRes.data);
+        
+        const now = new Date();
+        const upcoming = eventsRes.data.filter(event => {
+          const eventEndDate = new Date(event.end_at);
+          console.log('Event:', event.title, 'End date:', eventEndDate, 'Is upcoming:', eventEndDate >= now);
+          return eventEndDate >= now;
+        });
+        
+        const past = eventsRes.data.filter(event => {
+          const eventEndDate = new Date(event.end_at);
+          console.log('Event:', event.title, 'End date:', eventEndDate, 'Is past:', eventEndDate < now);
+          return eventEndDate < now;
+        });
+        
+        console.log('Filtered upcoming events:', upcoming);
+        console.log('Filtered past events:', past);
+
         setOrganizer(organizerRes.data);
         setEvents(eventsRes.data);
         setIsFollowing(followingRes.data.includes(parseInt(id)));

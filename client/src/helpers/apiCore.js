@@ -1,6 +1,11 @@
 import axios from "axios";
 
 const API_URL = `http://localhost:3001/api`; 
+const AUTH_SESSION_KEY = "authToken";
+
+const getTokenFromStorage = () => {
+    return localStorage.getItem(AUTH_SESSION_KEY);
+};
 
 const axiosInstance = axios.create({
     baseURL: API_URL, 
@@ -9,65 +14,28 @@ const axiosInstance = axios.create({
     }
 });
 
-const AUTH_SESSION_KEY = "authToken";
-
-const getTokenFromStorage = () => {
-    return localStorage.getItem(AUTH_SESSION_KEY);
-};
-
+// Add a request interceptor to add the auth token
 axiosInstance.interceptors.request.use(
-    config => {
+    (config) => {
         const token = getTokenFromStorage();
         if (token) {
-            config.headers["Authorization"] = "Bearer " + token;
+            config.headers.Authorization = `Bearer ${token}`;
         }
-        
-        // If we're sending FormData, let the browser set the Content-Type
-        if (config.data instanceof FormData) {
-            delete config.headers["Content-Type"];
-        }
-        
         return config;
     },
-    error => {
+    (error) => {
         return Promise.reject(error);
     }
 );
 
+// Add a response interceptor to handle errors
 axiosInstance.interceptors.response.use(
-    response => {
-        return response;
-    },
-    error => {
-        const customError = {
-            status: error.response?.status,
-            message: "An error occurred",
-            data: error.response?.data,
-            originalError: error,
-        };
-
-        if (error.response) {
-            const { status, data } = error.response;
-            switch (status) {
-                case 401:
-                    customError.message = data?.message || "Authentication failed. Please check your credentials or token.";
-                    // Don't clear token here - let authService handle it properly
-                    break;
-                case 403:
-                    customError.message = data?.message || "Access Forbidden: You do not have permission to access this resource.";
-                    break;
-                case 404:
-                    customError.message = data?.message || "Resource not found.";
-                    break;
-                default:
-                    customError.message = data?.message || error.message || "An unknown server error occurred.";
-            }
-        } else if (error.request) {
-            customError.message = "Network Error: Could not connect to the server.";
-        } else {
-            customError.message = error.message || "An unexpected error occurred.";
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem(AUTH_SESSION_KEY);
         }
-        return Promise.reject(customError);
+        return Promise.reject(error);
     }
 );
 

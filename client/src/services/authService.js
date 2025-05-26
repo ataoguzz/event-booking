@@ -24,7 +24,12 @@ const register = async (userData) => {
     return response.data; 
   } catch (error) {
     console.error('AuthService: Registration failed', error.message); 
-    throw error; 
+    throw {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+      originalError: error
+    }; 
   }
 };
 
@@ -37,40 +42,45 @@ const login = async (credentials) => {
     return response.data; 
   } catch (error) {
     console.error('AuthService: Login failed', error.message);
-    throw error;
+    throw {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+      originalError: error
+    };
   }
 };
 
 const logout = async () => {
-  storeToken(null); 
   try {
     await apiClient.post('/auth/logout');
   } catch (error) {
     console.warn('AuthService: Backend logout call failed', error.message);
+  } finally {
+    storeToken(null);
   }
 };
 
 const getCurrentUser = async () => {
   const token = getStoredToken();
-  console.log('AuthService: Checking stored token on getCurrentUser', !!token); // Debug log
   if (!token) { 
-    console.log('AuthService: No token found in storage'); // Debug log
     return null;
   }
 
   try {
-    console.log('AuthService: Making request to /auth/current-user'); // Debug log
     const response = await apiClient.get('/auth/current-user');
-    console.log('AuthService: getCurrentUser success', response.data); // Debug log
     return response.data; 
   } catch (error) {
     console.error('AuthService: Failed to fetch current user', error.message);
-    console.log('AuthService: Error status:', error.status); // Debug log
-    if (error.status === 401) {
-      console.log('AuthService: 401 error - clearing token'); // Debug log
+    if (error.response?.status === 401) {
       storeToken(null);
     }
-    return null;
+    throw {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+      originalError: error
+    };
   }
 };
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext.jsx"
 import { Menu, X, User, LogOut, Ticket, Calendar, Users, Settings, LayoutDashboard, Wallet } from "lucide-react"
 import {
@@ -16,11 +16,17 @@ import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
 const Navbar = () => {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const navigate = useNavigate()
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/auth/login')
   }
 
   return (
@@ -254,10 +260,10 @@ const Navbar = () => {
                           </DropdownMenuItem>
                       )}
                       <DropdownMenuItem>
-                        <Link to="/auth/login" className="w-full flex items-center">
+                        <button onClick={handleLogout} className="w-full flex items-center">
                           <LogOut className="mr-2 h-4 w-4" />
                           Logout
-                        </Link>
+                        </button>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

@@ -44,11 +44,11 @@ const LoadComponent = ({ component }) => (
 );
 
 const AllRoutes = () => {
-    const {user, isAuthenticated} = useAuth();
+    const {user, isAuthenticated, isLoading} = useAuth();
 
-    // If we're still loading, don't render anything (handled by parent)
-    if (!user && !isAuthenticated) {
-        return <Navigate to="/auth/login" />;
+    // Don't redirect while loading
+    if (isLoading) {
+        return null;
     }
 
     return useRoutes([
@@ -63,13 +63,19 @@ const AllRoutes = () => {
         },
         {
             path: "/login",
-            element: <Navigate to="/auth/login" /> // alttakileri degistirmeye usendim
+            element: <Navigate to="/auth/login" />
         },
         {
             path: "/auth",
             children:[
-                {path: "login", element: <LoadComponent component={Login} />},
-                {path: "signup", element: <LoadComponent component={Signup} />}
+                {
+                    path: "login",
+                    element: isAuthenticated ? <Navigate to="/home" /> : <LoadComponent component={Login} />
+                },
+                {
+                    path: "signup",
+                    element: isAuthenticated ? <Navigate to="/home" /> : <LoadComponent component={Signup} />
+                }
             ]
         },
         // Attendee Routes

@@ -16,17 +16,16 @@ export default function LoginForm() {
     const navigate = useNavigate()
     const location = useLocation() 
 
-    
-    const from = location.state?.from?.pathname || "/home"; 
+    const from = location.state?.from?.pathname || "/home"
 
     const handleEmailChange = (e) => {
         setEmail(e.target.value)
-        if (error) setError(null); 
+        if (error) setError(null)
     }
 
     const handlePasswordChange = (e) => {
         setPassword(e.target.value)
-        if (error) setError(null);
+        if (error) setError(null)
     }
 
     const handleSubmit = async (e) => {
@@ -47,69 +46,50 @@ export default function LoginForm() {
     }
 
     return (
-        <div className="w-full max-w-md">
-            <Card>
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
-                </CardHeader>
-                <CardContent>
+        <Card className="w-[350px]">
+            <CardHeader>
+                <CardTitle>Login</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                            id="email"
+                            type="email"
+                            placeholder="Enter your email"
+                            value={email}
+                            onChange={handleEmailChange}
+                            required
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input
+                            id="password"
+                            type="password"
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={handlePasswordChange}
+                            required
+                        />
+                    </div>
                     {error && (
-                        <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded">
-                            <p>{error}</p>
+                        <div className="text-sm text-red-500">
+                            {error}
                         </div>
                     )}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                name="email" 
-                                type="email"
-                                value={email}
-                                onChange={handleEmailChange}
-                                required
-                                disabled={isLoading}
-                                autoComplete="email"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <Label htmlFor="password">Password</Label>
-                                <Link
-                                    to="/auth/forgot-password"
-                                    className={`text-sm text-gray-600 hover:underline ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
-                                >
-                                    Forgot password?
-                                </Link>
-                            </div>
-                            <Input
-                                id="password"
-                                name="password" 
-                                type="password"
-                                value={password}
-                                onChange={handlePasswordChange}
-                                required
-                                disabled={isLoading}
-                                autoComplete="current-password"
-                            />
-                        </div>
-                        <Button type="submit" className="w-full bg-black hover:bg-gray-800" disabled={isLoading}>
-                            {isLoading ? "Signing In..." : "Sign In"}
-                        </Button>
-                        <div className="text-center mt-4">
-                            <p className="text-sm text-gray-600">
-                                Don't have an account?{" "}
-                                <Link
-                                    to="/auth/signup" 
-                                    className={`text-black hover:underline ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
-                                >
-                                    Create one
-                                </Link>
-                            </p>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? "Logging in..." : "Login"}
+                    </Button>
+                    <div className="text-sm text-center">
+                        Don't have an account?{" "}
+                        <Link to="/auth/signup" className="text-primary hover:underline">
+                            Sign up
+                        </Link>
+                    </div>
+                </form>
+            </CardContent>
+        </Card>
     )
 }

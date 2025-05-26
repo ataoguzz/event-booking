@@ -276,3 +276,10 @@ export const getCurrentUser = async (req, res, next) => {
       next(error);
   }
 };
+
+export const logoutUser = async (req, res) => {
+    // Since we're using JWT tokens and storing them client-side,
+    // we don't need to do anything server-side for logout.
+    // The client will remove the token from localStorage.
+    res.status(200).json({ message: 'Logged out successfully' });
+};

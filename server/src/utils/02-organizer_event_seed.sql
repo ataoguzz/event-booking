@@ -383,4 +383,75 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+-- Add past events for StageCo Live
+INSERT INTO events (
+    organizer_account_id,
+    venue_id,
+    category,
+    title,
+    description,
+    start_at,
+    end_at,
+    status,
+    base_price,
+    hero_image_url
+) VALUES 
+(
+    (SELECT account_id FROM accounts WHERE email = 'stageco@example.com'),
+    (SELECT venue_id FROM venues WHERE name = 'Sinan Erdem Dome'),
+    'CONCERT',
+    'Rock Legends Festival 2023',
+    'A historic night featuring the biggest names in rock music.',
+    '2023-12-15 19:00:00',
+    '2023-12-16 02:00:00',
+    'COMPLETED',
+    450.00,
+    'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14'
+),
+(
+    (SELECT account_id FROM accounts WHERE email = 'stageco@example.com'),
+    (SELECT venue_id FROM venues WHERE name = 'Sinan Erdem Dome'),
+    'CONCERT',
+    'Summer Beats 2024',
+    'The hottest EDM festival of the summer.',
+    '2024-07-20 18:00:00',
+    '2024-07-21 04:00:00',
+    'COMPLETED',
+    350.00,
+    'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7'
+);
+
+-- Add reviews for past events
+INSERT INTO reviews (
+    event_id,
+    account_id,
+    stars,
+    body
+) VALUES
+(
+    (SELECT event_id FROM events WHERE title = 'Rock Legends Festival 2023'),
+    (SELECT account_id FROM accounts WHERE email = 'john@example.com'),
+    5,
+    'Mind-blowing performances! The production quality was incredible.'
+),
+(
+    (SELECT event_id FROM events WHERE title = 'Rock Legends Festival 2023'),
+    (SELECT account_id FROM accounts WHERE email = 'emma@example.com'),
+    4,
+    'Great show, though the sound could have been better in some sections.'
+),
+(
+    (SELECT event_id FROM events WHERE title = 'Summer Beats 2024'),
+    (SELECT account_id FROM accounts WHERE email = 'john@example.com'),
+    5,
+    'Best EDM festival I've been to! Amazing atmosphere and organization.'
+),
+(
+    (SELECT event_id FROM events WHERE title = 'Summer Beats 2024'),
+    (SELECT account_id FROM accounts WHERE email = 'emma@example.com'),
+    4,
+    'Fantastic lineup and great vibes throughout the night.'
+);
+
+
 
