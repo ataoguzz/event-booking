@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout.jsx';
-import { Button } from '@/components/ui/button.jsx';
+import { Button, buttonVariants } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Calendar, Star, Search, Users, Plus, Check } from 'lucide-react';
 import apiClient from '../../helpers/apiCore.js';
+import { cn } from '@/lib/utils';
 
 export default function FindOrganizers() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,7 +53,7 @@ export default function FindOrganizers() {
 
     setOrganizers((prev) =>
       prev.map((o) =>
-        o.organizer_id === id
+        o.account_id === id
           ? { ...o, followers_count: o.followers_count + (isFollowing ? -1 : 1) }
           : o
       )
@@ -60,7 +61,7 @@ export default function FindOrganizers() {
   };
 
   const myFollowedOrganizers = organizers.filter((org) =>
-    followedOrganizers.includes(org.organizer_id)
+    followedOrganizers.includes(org.account_id)
   );
 
   return (
@@ -118,9 +119,9 @@ export default function FindOrganizers() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {organizers.map((org) => (
                   <OrganizerCard
-                    key={org.organizer_id}
+                    key={org.account_id}
                     organizer={org}
-                    isFollowing={followedOrganizers.includes(org.organizer_id)}
+                    isFollowing={followedOrganizers.includes(org.account_id)}
                     onFollowToggle={handleFollowToggle}
                   />
                 ))}
@@ -138,7 +139,7 @@ export default function FindOrganizers() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {myFollowedOrganizers.map((org) => (
                   <OrganizerCard
-                    key={org.organizer_id}
+                    key={org.account_id}
                     organizer={org}
                     isFollowing={true}
                     onFollowToggle={handleFollowToggle}
@@ -154,7 +155,7 @@ export default function FindOrganizers() {
 }
 
 function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
-  const rating = organizer.avg_rating ? Number(organizer.avg_rating) : 0;
+  const rating = organizer.average_rating ? Number(organizer.average_rating) : 0;
 
   return (
     <Card className="overflow-hidden">
@@ -189,11 +190,13 @@ function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
         </Avatar>
         <div>
           <CardTitle className="text-xl">{organizer.display_name}</CardTitle>
-          <div className="flex items-center text-sm">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-            <span>
-              {rating.toFixed(1)} · {organizer.followers_count.toLocaleString()} followers
-            </span>
+          <div className="flex items-center text-sm space-x-2">
+            <div className="flex items-center">
+              <Star className={cn("h-4 w-4 mr-1", rating > 0 ? "fill-yellow-400 text-yellow-400" : "text-gray-300")} />
+              <span>{rating > 0 ? rating.toFixed(1) : 'No ratings'}</span>
+            </div>
+            <span>·</span>
+            <span>{organizer.followers_count.toLocaleString()} followers</span>
           </div>
         </div>
       </CardHeader>
@@ -208,13 +211,16 @@ function OrganizerCard({ organizer, isFollowing, onFollowToggle }) {
       </CardContent>
 
       <CardFooter className="flex gap-2">
-        <Button variant="outline" className="flex-1" asChild>
-          <Link to={`/organizers/${organizer.organizer_id}`}>View Profile</Link>
-        </Button>
+        <Link 
+          to={`/organizers/${organizer.account_id}`}
+          className={cn(buttonVariants({ variant: "outline", className: "flex-1" }))}
+        >
+          View Profile
+        </Link>
 
         <Button
           className="flex-1"
-          onClick={() => onFollowToggle(organizer.organizer_id)}
+          onClick={() => onFollowToggle(organizer.account_id)}
           variant={isFollowing ? 'default' : 'secondary'}
         >
           {isFollowing ? (

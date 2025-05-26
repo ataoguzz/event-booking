@@ -108,28 +108,36 @@ CREATE TABLE seats (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE TABLE venue_requests (
-    request_id BIGSERIAL PRIMARY KEY,
-    organizer_account_id BIGINT NOT NULL,
-    name TEXT NOT NULL,
-    city TEXT,
-    capacity TEXT,
-    notes TEXT,
-    status venue_request_status_enum DEFAULT 'PENDING',
-    admin_account_id BIGINT NULL,
-    decision_at TIMESTAMPTZ NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_organizer
-        FOREIGN KEY(organizer_account_id)
-        REFERENCES organizers(account_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_admin
-        FOREIGN KEY(admin_account_id)
-        REFERENCES admins(account_id)
-        ON DELETE SET NULL ON UPDATE CASCADE
-);
+-- In your 00-schema.sql, find and replace the CREATE TABLE venue_requests
 
+DROP TABLE IF EXISTS venue_requests; -- If it exists, to ensure clean slate with new columns
+CREATE TABLE venue_requests (
+                                request_id BIGSERIAL PRIMARY KEY,
+                                organizer_account_id BIGINT NOT NULL,
+                                name TEXT NOT NULL,                       -- Venue Name
+                                address TEXT NULL,                        -- Full address
+                                city TEXT,
+                                capacity TEXT,                            -- Organizer's estimated capacity (still TEXT)
+                                is_seated BOOLEAN NULL DEFAULT FALSE,     -- Is it a seated venue?
+                                requested_layout_rows INT NULL,           -- For seated: number of rows requested
+                                requested_layout_cols INT NULL,           -- For seated: number of seats per row requested
+                                notes TEXT,                               -- General notes about the venue or layout
+                                status venue_request_status_enum DEFAULT 'PENDING',
+                                admin_account_id BIGINT NULL,
+                                decision_at TIMESTAMPTZ NULL,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                                CONSTRAINT fk_organizer_venue_request -- Renamed constraint for clarity
+                                    FOREIGN KEY(organizer_account_id)
+                                        REFERENCES organizers(account_id)
+                                        ON DELETE RESTRICT ON UPDATE CASCADE,
+                                CONSTRAINT fk_admin_venue_request -- Renamed constraint
+                                    FOREIGN KEY(admin_account_id)
+                                        REFERENCES admins(account_id)
+                                        ON DELETE SET NULL ON UPDATE CASCADE
+);
+CREATE INDEX idx_venue_requests_organizer_id ON venue_requests(organizer_account_id);
+CREATE INDEX idx_venue_requests_status ON venue_requests(status);
 
 CREATE TABLE events (
     event_id BIGSERIAL PRIMARY KEY,
@@ -145,7 +153,6 @@ CREATE TABLE events (
     base_price NUMERIC(10, 2) CHECK (base_price >= 0),
     tickets_sold INT DEFAULT 0 CHECK (tickets_sold >= 0),
     hero_image_url TEXT,
-    avg_rating NUMERIC(2, 1) DEFAULT 0.0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT fk_organizer
@@ -173,14 +180,18 @@ CREATE TABLE event_images (
 );
 
 CREATE TABLE event_ticket_tiers (
-    tier_id     BIGSERIAL     PRIMARY KEY,
-    event_id    BIGINT        NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
-    tier_name   VARCHAR(100)  NOT NULL,
-    price       NUMERIC(10,2) NOT NULL CHECK (price >= 0),
-    quantity    INT           NOT NULL CHECK (quantity > 0),
-    description TEXT,
-    created_at  TIMESTAMPTZ   DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ   DEFAULT NOW(),
+    tier_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    tier_name VARCHAR(100) NOT NULL,
+    price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+    quantity INT NOT NULL CHECK (quantity > 0),
+    description TEXT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_event_for_tier
+        FOREIGN KEY(event_id)
+        REFERENCES events(event_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
     UNIQUE (event_id, tier_name)
 );
 
@@ -308,8 +319,7 @@ SELECT
     o.account_id AS organizer_account_id,
     o.display_name AS organizer_name,
     o.avatar_url AS organizer_avatar_url,
-    o.avg_rating AS organizer_rating,
-    f.created_at AS follow_date
+    o.avg_rating AS organizer_rating
 FROM follows f
 JOIN organizers o ON o.account_id = f.organizer_account_id
 JOIN events e ON e.organizer_account_id = o.account_id
@@ -323,9 +333,8 @@ CREATE INDEX idx_events_start_at ON events(start_at);
 CREATE INDEX idx_venues_city ON venues(city);
 CREATE INDEX idx_events_category ON events(category);
 CREATE INDEX idx_tickets_tx_id ON tickets(tx_id);
-CREATE INDEX idx_tickets_event_id ON tickets(event_id);
 CREATE INDEX idx_transactions_attendee_account_id_created_at ON transactions(attendee_account_id, created_at DESC);
 CREATE INDEX idx_promo_codes_code ON promo_codes(code);
 CREATE INDEX idx_tickets_event_status ON tickets(event_id, status);
-CREATE INDEX idx_tickets_event_tier   ON tickets(event_id, tier_id);
 CREATE INDEX idx_event_ticket_tiers_event_id ON event_ticket_tiers(event_id);
+CREATE UNIQUE INDEX idx_tickets_unique_assigned_seat ON tickets (event_id, seat_id) WHERE seat_id IS NOT NULL;

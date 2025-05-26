@@ -13,6 +13,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
 
 const Navbar = () => {
   const { user } = useAuth()
@@ -38,169 +39,6 @@ const Navbar = () => {
                 {user?.role === "attendee" && (
                     <>
                       <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/browse-events"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Browse Events
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/my-tickets"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            My Tickets
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/find-organizers"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Find Organizers
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/wallet"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            <Wallet className="h-4 w-4 mr-2" />
-                            Wallet
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                    </>
-                )}
-
-                {/* Organizer Navigation */}
-                {user?.role === "organizer" && (
-                    <>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/my-events"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            My Events
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/create-event"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Create Event
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/followers"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Followers
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/analytics"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Analytics
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                    </>
-                )}
-
-                {/* Admin Navigation */}
-                {user?.role === "admin" && (
-                    <>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/dashboard"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Dashboard
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/events"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Manage Events
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/venues"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Manage Venues
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                      <NavigationMenuItem>
-                        <NavigationMenuLink asChild>
-                          <Link
-                              to="/users"
-                              className={cn(
-                                  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
-                              )}
-                          >
-                            Manage Users
-                          </Link>
-                        </NavigationMenuLink>
-                      </NavigationMenuItem>
-                    </>
-                )}
-
-                {/* Guest Navigation */}
-                {!user && (
-                    <NavigationMenuItem>
-                      <NavigationMenuLink asChild>
                         <Link
                             to="/browse-events"
                             className={cn(
@@ -209,7 +47,144 @@ const Navbar = () => {
                         >
                           Browse Events
                         </Link>
-                      </NavigationMenuLink>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/my-tickets"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          My Tickets
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/find-organizers"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Find Organizers
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/wallet"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          <Wallet className="h-4 w-4 mr-2" />
+                          Wallet
+                        </Link>
+                      </NavigationMenuItem>
+                    </>
+                )}
+
+                {/* Organizer Navigation */}
+                {user?.role === "organizer" && (
+                    <>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/my-events"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          My Events
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/create-event"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Create Event
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/followers"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Followers
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/analytics"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Analytics
+                        </Link>
+                      </NavigationMenuItem>
+                    </>
+                )}
+
+                {/* Admin Navigation */}
+                {user?.role === "admin" && (
+                    <>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/dashboard"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Dashboard
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/events"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Manage Events
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/venues"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Manage Venues
+                        </Link>
+                      </NavigationMenuItem>
+                      <NavigationMenuItem>
+                        <Link
+                            to="/users"
+                            className={cn(
+                                "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                            )}
+                        >
+                          Manage Users
+                        </Link>
+                      </NavigationMenuItem>
+                    </>
+                )}
+
+                {/* Guest Navigation */}
+                {!user && (
+                    <NavigationMenuItem>
+                      <Link
+                          to="/browse-events"
+                          className={cn(
+                              "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-accent/50 data-[state=open]:bg-accent/50",
+                          )}
+                      >
+                        Browse Events
+                      </Link>
                     </NavigationMenuItem>
                 )}
               </NavigationMenuList>
@@ -230,90 +205,70 @@ const Navbar = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Button asChild variant="ghost">
+                      {user.role === "organizer" && (
+                        <DropdownMenuItem>
                           <Link to="/profile" className="w-full flex items-center">
                             <User className="mr-2 h-4 w-4" />
                             Profile
                           </Link>
-                        </Button>
-                      </DropdownMenuItem>
+                        </DropdownMenuItem>
+                      )}
                       {user.role === "attendee" && (
                           <>
                             <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/my-tickets" className="w-full flex items-center">
-                                  <Ticket className="mr-2 h-4 w-4" />
-                                  My Tickets
-                                </Link>
-                              </Button>
+                              <Link to="/my-tickets" className="w-full flex items-center">
+                                <Ticket className="mr-2 h-4 w-4" />
+                                My Tickets
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/wallet" className="w-full flex items-center">
-                                  <Wallet className="mr-2 h-4 w-4" />
-                                  Wallet
-                                </Link>
-                              </Button>
+                              <Link to="/wallet" className="w-full flex items-center">
+                                <Wallet className="mr-2 h-4 w-4" />
+                                Wallet
+                              </Link>
                             </DropdownMenuItem>
                           </>
                       )}
                       {user.role === "organizer" && (
                           <>
                             <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/my-events" className="w-full flex items-center">
-                                  <Calendar className="mr-2 h-4 w-4" />
-                                  My Events
-                                </Link>
-                              </Button>
+                              <Link to="/my-events" className="w-full flex items-center">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                My Events
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem>
-                              <Button asChild variant="ghost">
-                                <Link to="/followers" className="w-full flex items-center">
-                                  <Users className="mr-2 h-4 w-4" />
-                                  Followers
-                                </Link>
-                              </Button>
+                              <Link to="/followers" className="w-full flex items-center">
+                                <Users className="mr-2 h-4 w-4" />
+                                Followers
+                              </Link>
                             </DropdownMenuItem>
                           </>
                       )}
                       {user.role === "admin" && (
                           <DropdownMenuItem>
-                            <Button asChild variant="ghost">
-                              <Link to="/dashboard" className="w-full flex items-center">
-                                <LayoutDashboard className="mr-2 h-4 w-4" />
-                                Admin Dashboard
-                              </Link>
-                            </Button>
+                            <Link to="/dashboard" className="w-full flex items-center">
+                              <LayoutDashboard className="mr-2 h-4 w-4" />
+                              Admin Dashboard
+                            </Link>
                           </DropdownMenuItem>
                       )}
                       <DropdownMenuItem>
-                        <Button asChild variant="ghost">
-                          <Link to="/settings" className="w-full flex items-center">
-                            <Settings className="mr-2 h-4 w-4" />
-                            Settings
-                          </Link>
-                        </Button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Button asChild variant="ghost">
-                          <Link to="/auth/login" className="w-full flex items-center"> {/* temporary logout link */}
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Logout
-                          </Link>
-                        </Button>
+                        <Link to="/auth/login" className="w-full flex items-center">
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Logout
+                        </Link>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
               ) : (
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" asChild>
-                      <Link to="/login">Login</Link>
-                    </Button>
-                    <Button asChild>
-                      <Link to="/register">Register</Link>
-                    </Button>
+                    <Link to="/login" className={cn(buttonVariants({ variant: "outline" }))}>
+                      Login
+                    </Link>
+                    <Link to="/register" className={cn(buttonVariants())}>
+                      Register
+                    </Link>
                   </div>
               )}
 

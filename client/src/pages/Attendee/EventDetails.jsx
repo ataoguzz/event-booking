@@ -29,34 +29,26 @@ import {
   Bus,
   CreditCard
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import { Textarea } from "@/components/ui/textarea";
 import apiClient from '../../helpers/apiCore.js';
 
 const EventDetails = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageLoadingStates, setImageLoadingStates] = useState({});
   const [imageErrors, setImageErrors] = useState({});
-  const [reviews, setReviews] = useState([]);
-  const [userReview, setUserReview] = useState(null);
-  const [newReview, setNewReview] = useState({ stars: 0, body: '' });
-  const [canReview, setCanReview] = useState(false);
 
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get(`/event/${eventId}`);
+        const response = await apiClient.get(`/event/${eventId}/details`);
         setEvent(response.data);
         setError(null);
-        
-        // Reset image states when new event is loaded
+      
         setCurrentImageIndex(0);
         setImageLoadingStates({});
         setImageErrors({});
@@ -73,58 +65,6 @@ const EventDetails = () => {
       fetchEventDetails();
     }
   }, [eventId]);
-
-  useEffect(() => {
-    const fetchReviews = async () => {
-      try {
-        const response = await apiClient.get(`/event/${eventId}/reviews`);
-        setReviews(response.data);
-        if (user) {
-          const userReview = response.data.find(review => review.account_id === user.account_id);
-          if (userReview) {
-            setUserReview(userReview);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching reviews:', err);
-      }
-    };
-
-    const checkCanReview = async () => {
-      if (!user) {
-        setCanReview(false);
-        return;
-      }
-      try {
-        const response = await apiClient.get(`/event/${eventId}/can-review`);
-        setCanReview(response.data.canReview);
-      } catch (err) {
-        console.error('Error checking review eligibility:', err);
-        setCanReview(false);
-      }
-    };
-
-    if (eventId) {
-      fetchReviews();
-      checkCanReview();
-    }
-  }, [eventId, user]);
-
-  const handleStarClick = (rating) => {
-    setNewReview(prev => ({ ...prev, stars: rating }));
-  };
-
-  const handleSubmitReview = async () => {
-    try {
-      const response = await apiClient.post(`/event/${eventId}/reviews`, newReview);
-      setUserReview(response.data);
-      setReviews(prev => [...prev, response.data]);
-      setNewReview({ stars: 0, body: '' });
-      setCanReview(false);
-    } catch (err) {
-      console.error('Error submitting review:', err);
-    }
-  };
 
   // Preload images when event data is loaded
   useEffect(() => {
@@ -311,8 +251,8 @@ const EventDetails = () => {
                       ) : (
                         <img 
                           key={`image-${currentImageIndex}`}
-                          src={event.images[currentImageIndex]?.url} 
-                          alt={event.images[currentImageIndex]?.caption || `Event image ${currentImageIndex + 1}`} 
+                          src={event.images[currentImageIndex].url} 
+                          alt={event.images[currentImageIndex].caption || `Event image ${currentImageIndex + 1}`} 
                           className="w-full h-full object-cover"
                           onLoad={() => setImageLoadingStates(prev => ({ ...prev, [currentImageIndex]: false }))}
                           onError={() => {
@@ -416,98 +356,6 @@ const EventDetails = () => {
                 </CardContent>
               </Card>
             )}
-
-            {/* Reviews Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Reviews</span>
-                  {event?.avg_rating && (
-                    <div className="flex items-center">
-                      <Star className="h-5 w-5 fill-yellow-400 text-yellow-400 mr-1" />
-                      <span>{event.avg_rating.toFixed(1)}</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        ({reviews.length} reviews)
-                      </span>
-                    </div>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Review Form */}
-                {canReview && (
-                  <div className="mb-8 p-4 border rounded-lg">
-                    <h4 className="font-medium mb-4">Write a Review</h4>
-                    <div className="flex items-center mb-4">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          onClick={() => handleStarClick(star)}
-                          className="p-1"
-                        >
-                          <Star
-                            className={`h-6 w-6 ${
-                              star <= newReview.stars
-                                ? 'fill-yellow-400 text-yellow-400'
-                                : 'text-gray-300'
-                            }`}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                    <Textarea
-                      placeholder="Share your experience..."
-                      value={newReview.body}
-                      onChange={(e) => setNewReview(prev => ({ ...prev, body: e.target.value }))}
-                      className="mb-4"
-                    />
-                    <Button
-                      onClick={handleSubmitReview}
-                      disabled={newReview.stars === 0}
-                    >
-                      Submit Review
-                    </Button>
-                  </div>
-                )}
-
-                {/* Reviews List */}
-                <div className="space-y-6">
-                  {reviews.map((review) => (
-                    <div key={review.review_id} className="border-b pb-6 last:border-b-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center">
-                          <div className="flex">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${
-                                  i < review.stars
-                                    ? 'fill-yellow-400 text-yellow-400'
-                                    : 'text-gray-300'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          <span className="ml-2 font-medium">{review.user_name}</span>
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {format(new Date(review.created_at), 'MMM d, yyyy')}
-                        </span>
-                      </div>
-                      {review.body && (
-                        <p className="text-muted-foreground">{review.body}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {reviews.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No reviews yet. {canReview && "Be the first to review!"}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
 
           {/* Sidebar */}
@@ -581,7 +429,7 @@ const EventDetails = () => {
                     </div>
                     <div className="flex-1">
                       <Link 
-                        to={`/organizer/${event.organizer.account_id || 'profile'}`}
+                        to={`/organizers/${event.organizer.account_id}`}
                         className="text-sm font-medium text-gray-900 hover:text-blue-600 block transition-colors"
                       >
                         {event.organizer.display_name}

@@ -1,39 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout.jsx';
-import { Button } from '@/components/ui/button.jsx';
-import {
-  Card,
-  CardHeader,
-  CardContent,
-  CardTitle,
-} from '@/components/ui/card.jsx';
-import { Badge } from '@/components/ui/badge.jsx';
-import { Separator } from '@/components/ui/separator.jsx';
 import { 
-  ChevronLeft, 
   Ticket,
-  Calendar,
-  MapPin,
-  User,
-  Download,
-  QrCode
 } from 'lucide-react';
-import apiClient from '../../helpers/apiCore.js';
+
 
 const TicketDetails = () => {
   const { transactionId } = useParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [transactionData, setTransactionData] = useState(null);
 
   useEffect(() => {
     const fetchTransactionDetails = async () => {
       try {
         setLoading(true);
-        // For now, let's redirect to My Tickets since we don't have a transaction details endpoint yet
         navigate('/my-tickets');
       } catch (err) {
         console.error('Error fetching transaction details:', err);

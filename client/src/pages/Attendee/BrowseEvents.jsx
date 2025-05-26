@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import Layout from '@/components/Layout.jsx';
-import { Button } from '@/components/ui/button.jsx';
+import { Button, buttonVariants } from '@/components/ui/button.jsx';
 import {
   Card,
   CardHeader,
@@ -27,27 +27,11 @@ import apiClient from '../../helpers/apiCore.js';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar as UICalendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-
-// Mock past event for testing
-const mockPastEvent = {
-  event_id: 'past-1',
-  title: 'New Year Concert 2023',
-  organizer_name: 'Symphony Orchestra',
-  organizer_rating: 4.8,
-  start_at: '2023-12-31T20:00:00',
-  venue_name: 'Grand Concert Hall',
-  city: 'New York',
-  price_from: 75,
-  cover_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819'
-};
 
 export default function BrowseEvents() {
   const [events, setEvents] = useState([]);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showPastEvents, setShowPastEvents] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [priceRange, setPriceRange] = useState([0, 500]);
@@ -76,8 +60,7 @@ export default function BrowseEvents() {
         'rating-desc': 'rating_high'
       })[sortBy],
       limit: 30,
-      page: 1,
-      show_past: showPastEvents
+      page: 1
     };
 
     if (startDate) {
@@ -87,26 +70,36 @@ export default function BrowseEvents() {
       params.date_to = format(endDate, 'yyyy-MM-dd');
     }
 
+
     try {
       console.log("Params:", params);
       const response = await apiClient.get('/event', { params });
       console.log("Response:", response.data);
-      // Add mock past event when showPastEvents is true
-      const eventsData = showPastEvents ? [mockPastEvent, ...response.data] : response.data;
-      setEvents(eventsData);
+      setEvents(response.data);
     } catch (error) {
       console.error("Error loading events:", error); 
-      setEvents(showPastEvents ? [mockPastEvent] : []); 
+      setEvents([]); 
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, categoryFilter, locationFilter, priceRange, startDate, endDate, sortBy, showPastEvents]);
+  }, [searchQuery, categoryFilter, locationFilter, priceRange, startDate, endDate, sortBy]);
 
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
 
-  const eventTypes = Array.from(new Set(events.map(e => e.category))).filter(Boolean);
+  const eventTypes = ["CONCERT", "THEATER", "SPORTS", "STANDUP", "CONFERENCE", "WORKSHOP", "FESTIVAL", "OTHER"];
+
+  const eventTypeLabels = {
+    "CONCERT": "CONCERT",
+    "THEATER": "THEATER",
+    "SPORTS": "SPORTS",
+    "STANDUP": "STANDUP",
+    "CONFERENCE": "CONFERENCE",
+    "WORKSHOP": "WORKSHOP",
+    "FESTIVAL": "FESTIVAL",
+    "OTHER": "OTHER"
+  };
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -138,28 +131,18 @@ export default function BrowseEvents() {
               }}
             />
           </div>
-          <div className="flex gap-2">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="show-past-events"
-                checked={showPastEvents}
-                onCheckedChange={setShowPastEvents}
-              />
-              <Label htmlFor="show-past-events">Show Past Events</Label>
-            </div>
-            <Select value={sortBy} onValueChange={value => {
-              setSortBy(value);
-            }}>
-              <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date-asc">Date (Soonest)</SelectItem>
-                <SelectItem value="date-desc">Date (Latest)</SelectItem>
-                <SelectItem value="price-asc">Price (Low to High)</SelectItem>
-                <SelectItem value="price-desc">Price (High to Low)</SelectItem>
-                <SelectItem value="rating-desc">Highest Rated</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={sortBy} onValueChange={value => {
+            setSortBy(value);
+          }}>
+            <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date-asc">Date (Soonest)</SelectItem>
+              <SelectItem value="date-desc">Date (Latest)</SelectItem>
+              <SelectItem value="price-asc">Price (Low to High)</SelectItem>
+              <SelectItem value="price-desc">Price (High to Low)</SelectItem>
+              <SelectItem value="rating-desc">Highest Rated</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-6">
@@ -185,6 +168,7 @@ export default function BrowseEvents() {
               setLocationFilter(value);
             }}
             eventTypes={eventTypes}
+            eventTypeLabels={eventTypeLabels}
             cities={cities}
             clearAll={clearAllFilters}
           />
@@ -212,17 +196,17 @@ export default function BrowseEvents() {
 function DatePickerField({ date, setDate, placeholder, disabledDates }) {
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant={"outline"}
+      <PopoverTrigger>
+        <div
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "justify-start text-left font-normal cursor-pointer",
             !date && "text-muted-foreground"
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {date ? format(date, "PPP") : <span>{placeholder}</span>}
-        </Button>
+        </div>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <UICalendar
@@ -243,7 +227,7 @@ function FiltersSidebar(props) {
     startDate, setStartDate, endDate, setEndDate,
     categoryFilter, setCategoryFilter,
     locationFilter, setLocationFilter,
-    eventTypes, cities,
+    eventTypes, eventTypeLabels, cities,
     clearAll 
   } = props;
 
@@ -274,7 +258,7 @@ function FiltersSidebar(props) {
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {eventTypes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {eventTypes.map(c => <SelectItem key={c} value={c}>{eventTypeLabels[c]}</SelectItem>)}
               </SelectContent>
             </Select>
           </FilterGroup>
@@ -320,8 +304,9 @@ function EventCard({ ev }) {
   return (
     <Card className="overflow-hidden">
       <div className="relative h-48">
-        <img src={ev.cover_url || 'https://via.placeholder.com/400x200?text=Event+Image'} alt={ev.title} className="w-full h-full object-cover" />
+        <img src={ev.cover_url} alt={ev.title} className="w-full h-full object-cover" />
         <Badge className="absolute top-3 right-3 bg-black text-white">${price}</Badge>
+        <Badge className="absolute top-3 left-3 bg-blue-600 text-white">{ev.category}</Badge>
       </div>
       <CardHeader>
         <CardTitle className="text-xl">{ev.title}</CardTitle>
@@ -342,7 +327,9 @@ function EventCard({ ev }) {
         </div>
       </CardContent>
       <CardFooter>
-        <Button asChild className="w-full"><Link to={`/event/${ev.event_id}`}>View Details</Link></Button>
+        <Link to={`/event/${ev.event_id}`} className={cn(buttonVariants({ className: "w-full" }))}>
+          View Details
+        </Link>
       </CardFooter>
     </Card>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from "@/components/Layout.jsx";
-import { Button } from '@/components/ui/button.jsx';
+import { Button, buttonVariants } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import apiClient from '../../helpers/apiCore.js';
+import { cn } from '@/lib/utils';
 
 export default function AttendeeHomepage() {
   const { user } = useAuth();
@@ -107,9 +108,14 @@ export default function AttendeeHomepage() {
               <p className="text-muted-foreground mb-4">
                 Start following organizers to see their latest events here
               </p>
-              <Button asChild>
-                <Link to="/browse-events">Discover Events</Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link to="/browse-events" className={cn(buttonVariants())}>
+                  Browse Events
+                </Link>
+                <Link to="/find-organizers" className={cn(buttonVariants({ variant: "outline" }))}>
+                  Find Organizers
+                </Link>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -118,12 +124,10 @@ export default function AttendeeHomepage() {
               <h2 className="text-2xl font-semibold">
                 Events from Your Followed Organizers ({followedEvents.length})
               </h2>
-              <Button variant="outline" asChild>
-                <Link to="/browse-events">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Browse All Events
-                </Link>
-              </Button>
+              <Link to="/browse-events" className={cn(buttonVariants({ variant: "outline" }))}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Browse All Events
+              </Link>
             </div>
 
             {/* Events List */}
@@ -194,11 +198,9 @@ export default function AttendeeHomepage() {
                             <div className="text-2xl font-bold text-primary mb-2">
                               ${event.base_price.toFixed(2)}
                             </div>
-                            <Button asChild>
-                              <Link to={`/event/${event.event_id}`}>
-                                View Event
-                              </Link>
-                            </Button>
+                            <Link to={`/event/${event.event_id}`} className={cn(buttonVariants())}>
+                              View Event
+                            </Link>
                           </div>
                         </div>
                       </div>
@@ -211,11 +213,9 @@ export default function AttendeeHomepage() {
             {/* View More Button */}
             {followedEvents.length >= 10 && (
               <div className="text-center pt-6">
-                <Button variant="outline" asChild>
-                  <Link to="/browse-events?following=true">
-                    View More Events from Followed Organizers
-                  </Link>
-                </Button>
+                <Link to="/browse-events?following=true" className={cn(buttonVariants({ variant: "outline" }))}>
+                  View More Events from Followed Organizers
+                </Link>
               </div>
             )}
           </div>

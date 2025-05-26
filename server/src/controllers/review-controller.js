@@ -1,151 +1,126 @@
 import { query } from '../utils/db.js';
 
-export const getEventReviews = async (req, res) => {
-  try {
-    const { eventId } = req.params;
-
-    const reviewsQuery = `
-      SELECT 
-        r.review_id,
-        r.account_id,
-        r.stars,
-        r.body,
-        r.created_at,
-        CASE 
-          WHEN a.role = 'attendee' THEN att.full_name
-          WHEN a.role = 'organizer' THEN org.display_name
-          ELSE 'Anonymous'
-        END AS user_name
-      FROM reviews r
-      JOIN accounts a ON a.account_id = r.account_id
-      LEFT JOIN attendees att ON att.account_id = r.account_id
-      LEFT JOIN organizers org ON org.account_id = r.account_id
-      WHERE r.event_id = $1
-      ORDER BY r.created_at DESC
-    `;
-
-    const { rows: reviews } = await query(reviewsQuery, [eventId]);
-    res.json(reviews);
-  } catch (err) {
-    console.error('Error fetching event reviews:', err);
-    res.status(500).json({ error: 'Failed to fetch reviews' });
-  }
-};
-
-export const canReviewEvent = async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const accountId = req.user.account_id;
-
-    // Check if the event has ended
-    const eventQuery = `
-      SELECT end_at
-      FROM events
-      WHERE event_id = $1 AND status = 'COMPLETED'
-    `;
-    const { rows: eventRows } = await query(eventQuery, [eventId]);
-    
-    if (eventRows.length === 0) {
-      return res.json({ canReview: false, reason: 'Event has not ended yet' });
-    }
-
-    // Check if the user attended the event
-    const ticketQuery = `
-      SELECT ticket_id
-      FROM tickets
-      WHERE event_id = $1 AND attendee_account_id = $2 AND status = 'PURCHASED'
-    `;
-    const { rows: ticketRows } = await query(ticketQuery, [eventId, accountId]);
-
-    if (ticketRows.length === 0) {
-      return res.json({ canReview: false, reason: 'User did not attend this event' });
-    }
-
-    // Check if the user has already reviewed
-    const reviewQuery = `
-      SELECT review_id
-      FROM reviews
-      WHERE event_id = $1 AND account_id = $2
-    `;
-    const { rows: reviewRows } = await query(reviewQuery, [eventId, accountId]);
-
-    if (reviewRows.length > 0) {
-      return res.json({ canReview: false, reason: 'User has already reviewed this event' });
-    }
-
-    res.json({ canReview: true });
-  } catch (err) {
-    console.error('Error checking review eligibility:', err);
-    res.status(500).json({ error: 'Failed to check review eligibility' });
-  }
-};
-
 export const createReview = async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const { stars, body } = req.body;
-    const accountId = req.user.account_id;
-
-    // Validate input
-    if (!stars || stars < 1 || stars > 5) {
-      return res.status(400).json({ error: 'Invalid rating. Must be between 1 and 5.' });
-    }
-
-    // Start a transaction
-    const client = await query('BEGIN');
-
     try {
-      // Insert the review
-      const insertReviewQuery = `
-        INSERT INTO reviews (event_id, account_id, stars, body)
-        VALUES ($1, $2, $3, $4)
-        RETURNING review_id, stars, body, created_at
-      `;
-      const { rows: [review] } = await client.query(insertReviewQuery, [eventId, accountId, stars, body]);
+        const { eventId } = req.params;
+        const { rating, comment, ticketId } = req.body;
+        const { accountId } = req.user;
 
-      // Update event's average rating
-      const updateEventRatingQuery = `
-        WITH event_avg AS (
-          SELECT AVG(stars)::NUMERIC(2,1) as avg_rating
-          FROM reviews
-          WHERE event_id = $1
-        )
-        UPDATE events
-        SET avg_rating = event_avg.avg_rating
-        FROM event_avg
-        WHERE event_id = $1
-        RETURNING avg_rating
-      `;
-      const { rows: [updatedEvent] } = await client.query(updateEventRatingQuery, [eventId]);
+        // Validate the ticket belongs to the user and is for the correct event
+        const ticketCheck = await query(
+            `SELECT t.ticket_id, t.event_id, e.start_at 
+             FROM tickets t
+             JOIN events e ON e.event_id = t.event_id
+             WHERE t.ticket_id = $1 
+             AND t.attendee_account_id = $2 
+             AND t.event_id = $3`,
+            [ticketId, accountId, eventId]
+        );
 
-      // Get user's name for the response
-      const userNameQuery = `
-        SELECT 
-          CASE 
-            WHEN a.role = 'attendee' THEN att.full_name
-            WHEN a.role = 'organizer' THEN org.display_name
-            ELSE 'Anonymous'
-          END AS user_name
-        FROM accounts a
-        LEFT JOIN attendees att ON att.account_id = a.account_id
-        LEFT JOIN organizers org ON org.account_id = a.account_id
-        WHERE a.account_id = $1
-      `;
-      const { rows: [user] } = await client.query(userNameQuery, [accountId]);
+        if (ticketCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found or not authorized' });
+        }
 
-      await client.query('COMMIT');
+        // Check if event has already happened
+        const eventDate = new Date(ticketCheck.rows[0].start_at);
+        if (eventDate > new Date()) {
+            return res.status(400).json({ error: 'Cannot review an event that has not happened yet' });
+        }
 
-      res.json({
-        ...review,
-        user_name: user.user_name,
-        account_id: accountId
-      });
+        // Check if review already exists for this ticket
+        const existingReview = await query(
+            'SELECT review_id FROM reviews WHERE ticket_id = $1',
+            [ticketId]
+        );
+
+        if (existingReview.rows.length > 0) {
+            return res.status(400).json({ error: 'Review already exists for this ticket' });
+        }
+
+        // Create the review
+        const result = await query(
+            `INSERT INTO reviews (event_id, ticket_id, attendee_account_id, rating, comment)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING review_id`,
+            [eventId, ticketId, accountId, rating, comment]
+        );
+
+        res.status(201).json({
+            message: 'Review submitted successfully',
+            reviewId: result.rows[0].review_id
+        });
+
     } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
+        console.error('Error creating review:', err);
+        res.status(500).json({ error: 'Failed to submit review' });
     }
-  } catch (err) {
-    console.error('Error creating review:', err);
-    res.status(500).json({ error: 'Failed to create review' });
-  }
+};
+
+export const getEventReviews = async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        const { page = 1, limit = 10 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const reviews = await query(
+            `SELECT r.review_id, r.rating, r.comment, r.created_at,
+                    a.display_name as reviewer_name,
+                    a.avatar_url as reviewer_avatar
+             FROM reviews r
+             JOIN accounts a ON a.account_id = r.attendee_account_id
+             WHERE r.event_id = $1
+             ORDER BY r.created_at DESC
+             LIMIT $2 OFFSET $3`,
+            [eventId, limit, offset]
+        );
+
+        // Get total count
+        const countResult = await query(
+            'SELECT COUNT(*) FROM reviews WHERE event_id = $1',
+            [eventId]
+        );
+
+        const totalReviews = parseInt(countResult.rows[0].count);
+        const totalPages = Math.ceil(totalReviews / limit);
+
+        res.json({
+            reviews: reviews.rows,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages,
+                totalReviews,
+                hasMore: page < totalPages
+            }
+        });
+
+    } catch (err) {
+        console.error('Error fetching reviews:', err);
+        res.status(500).json({ error: 'Failed to fetch reviews' });
+    }
+};
+
+export const getUserReview = async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        const { accountId } = req.user;
+
+        const review = await query(
+            `SELECT r.review_id, r.rating, r.comment, r.created_at,
+                    r.ticket_id, e.title as event_name
+             FROM reviews r
+             JOIN events e ON e.event_id = r.event_id
+             WHERE r.event_id = $1 AND r.attendee_account_id = $2`,
+            [eventId, accountId]
+        );
+
+        if (review.rows.length === 0) {
+            return res.status(404).json({ error: 'Review not found' });
+        }
+
+        res.json(review.rows[0]);
+
+    } catch (err) {
+        console.error('Error fetching user review:', err);
+        res.status(500).json({ error: 'Failed to fetch review' });
+    }
 }; 

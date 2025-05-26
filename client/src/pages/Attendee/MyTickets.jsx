@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout.jsx';
-import { Button } from '@/components/ui/button.jsx';
+import { Button, buttonVariants } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.jsx';
-import { Calendar, Clock, MapPin, Download, Eye, Star, Search, Ticket, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Download, Eye, Star, Search, Ticket, AlertCircle, MessageSquare } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
+import { Textarea } from '@/components/ui/textarea.jsx';
 import QRCode from 'react-qr-code';
 import apiClient from '../../helpers/apiCore.js';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function MyTickets() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,6 +21,11 @@ export default function MyTickets() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reviewTicket, setReviewTicket] = useState(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const { toast } = useToast();
   
   useEffect(() => {
     const fetchTickets = async () => {
@@ -76,10 +84,8 @@ export default function MyTickets() {
 
   const handleDownloadTicket = async (ticketId) => {
     try {
-      // Download PDF
-      const response = await apiClient.get(`/tickets/${ticketId}/download`, {
-        responseType: 'blob'
-      });
+      // Download PDF using the new downloadFile method
+      const response = await apiClient.downloadFile(`/tickets/${ticketId}/download`);
       
       // Create blob URL and download
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -109,6 +115,44 @@ export default function MyTickets() {
       date: ticket.date,
       verification_hash: btoa(`${ticket.id}-${ticket.qr_token}-${ticket.eventId}`)
     };
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!rating) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a rating before submitting",
+      });
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      await apiClient.post(`/events/${reviewTicket.eventId}/reviews`, {
+        rating,
+        comment,
+        ticketId: reviewTicket.id
+      });
+
+      toast({
+        title: "Review Submitted",
+        description: "Thank you for your feedback!",
+      });
+
+      setReviewTicket(null);
+      setRating(0);
+      setComment('');
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.response?.data?.error || "Failed to submit review",
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   if (loading) {
@@ -317,6 +361,67 @@ export default function MyTickets() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Review Dialog */}
+      {reviewTicket && (
+        <Dialog open={!!reviewTicket} onOpenChange={() => setReviewTicket(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Review Event</DialogTitle>
+              <DialogDescription>
+                Share your experience at {reviewTicket.eventName}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Rating</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className={cn(
+                        "p-1 rounded-md transition-colors",
+                        rating >= star ? "text-yellow-400" : "text-gray-300 hover:text-yellow-200"
+                      )}
+                    >
+                      <Star className={cn("h-8 w-8", rating >= star && "fill-current")} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Comment</label>
+                <Textarea
+                  placeholder="Share your thoughts about the event..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            
+            <DialogFooter className="sm:justify-between">
+              <Button 
+                variant="outline" 
+                onClick={() => setReviewTicket(null)}
+                disabled={submittingReview}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleReviewSubmit}
+                disabled={submittingReview}
+              >
+                {submittingReview ? "Submitting..." : "Submit Review"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </Layout>
   );
 }
@@ -327,9 +432,12 @@ function TicketsList({ tickets, onViewTicket, onDownloadTicket }) {
       <div className="text-center py-16 border rounded-lg">
         <h3 className="text-lg font-medium">No tickets found</h3>
         <p className="text-muted-foreground mt-1">Try adjusting your search or browse events to purchase tickets</p>
-        <Button className="mt-4" asChild>
-          <Link to="/browse-events">Browse Events</Link>
-        </Button>
+        <Link 
+          to="/browse-events" 
+          className={cn(buttonVariants(), "mt-4")}
+        >
+          Browse Events
+        </Link>
       </div>
     );
   }
@@ -417,6 +525,17 @@ function TicketsList({ tickets, onViewTicket, onDownloadTicket }) {
                       <Download size={14} className="mr-1" />
                       PDF
                     </Button>
+                    {ticket.status === 'past' && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setReviewTicket(ticket)}
+                        className="text-xs"
+                      >
+                        <MessageSquare size={14} className="mr-1" />
+                        Review
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>
