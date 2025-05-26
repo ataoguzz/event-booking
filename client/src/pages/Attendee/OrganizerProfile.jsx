@@ -253,7 +253,7 @@ export default function OrganizerProfile() {
                       <p className="text-sm line-clamp-3">{event.description}</p>
                     </CardContent>
                     <CardFooter>
-                      <Link to={`/events/${event.event_id}`} className={cn(buttonVariants({ className: "w-full" }))}>
+                      <Link to={`/event/${event.event_id}`} className={cn(buttonVariants({ className: "w-full" }))}>
                         View Event
                       </Link>
                     </CardFooter>

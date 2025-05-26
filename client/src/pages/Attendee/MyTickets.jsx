@@ -241,6 +241,7 @@ export default function MyTickets() {
               tickets={filteredTickets} 
               onViewTicket={handleViewTicket} 
               onDownloadTicket={handleDownloadTicket}
+              onReviewTicket={setReviewTicket}
             />
           </TabsContent>
           
@@ -249,6 +250,7 @@ export default function MyTickets() {
               tickets={filteredUpcomingTickets} 
               onViewTicket={handleViewTicket} 
               onDownloadTicket={handleDownloadTicket}
+              onReviewTicket={setReviewTicket}
             />
           </TabsContent>
           
@@ -257,6 +259,7 @@ export default function MyTickets() {
               tickets={filteredPastTickets} 
               onViewTicket={handleViewTicket} 
               onDownloadTicket={handleDownloadTicket}
+              onReviewTicket={setReviewTicket}
             />
           </TabsContent>
         </Tabs>
@@ -426,7 +429,7 @@ export default function MyTickets() {
   );
 }
 
-function TicketsList({ tickets, onViewTicket, onDownloadTicket }) {
+function TicketsList({ tickets, onViewTicket, onDownloadTicket, onReviewTicket }) {
   if (tickets.length === 0) {
     return (
       <div className="text-center py-16 border rounded-lg">
@@ -529,7 +532,7 @@ function TicketsList({ tickets, onViewTicket, onDownloadTicket }) {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => setReviewTicket(ticket)}
+                        onClick={() => onReviewTicket(ticket)}
                         className="text-xs"
                       >
                         <MessageSquare size={14} className="mr-1" />

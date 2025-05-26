@@ -63,11 +63,11 @@ export const getEventReviews = async (req, res) => {
         const offset = (page - 1) * limit;
 
         const reviews = await query(
-            `SELECT r.review_id, r.rating, r.comment, r.created_at,
-                    a.display_name as reviewer_name,
-                    a.avatar_url as reviewer_avatar
+            `SELECT r.review_id, r.stars as rating, r.body as comment, r.created_at,
+                    COALESCE(att.full_name, a.email) as reviewer_name
              FROM reviews r
-             JOIN accounts a ON a.account_id = r.attendee_account_id
+             JOIN accounts a ON a.account_id = r.account_id
+             LEFT JOIN attendees att ON att.account_id = r.account_id
              WHERE r.event_id = $1
              ORDER BY r.created_at DESC
              LIMIT $2 OFFSET $3`,

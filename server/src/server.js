@@ -13,6 +13,7 @@ import {eventRouter} from "./routers/event-router.js";
 import {organizerRouter} from "./routers/organizer-router.js";
 import {venueRouter} from "./routers/venue-router.js";
 import {ticketRouter} from "./routers/ticket-router.js";
+import {reviewRouter} from "./routers/review-router.js";
 import promoRouter from "./routers/promo-router.js";
 
 
@@ -35,6 +36,7 @@ app.use("/api/venue", venueRouter);
 app.use("/api/tickets", ticketRouter);
 app.use("/api/promo", promoRouter);
 app.use("/api/organizer", organizerRouter);
+app.use("/api", reviewRouter);
 
 
 app.use('/uploads', express.static(path.join(__dirnameCurrent, '..', 'uploads')));

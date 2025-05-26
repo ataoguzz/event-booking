@@ -35,17 +35,24 @@ const EventDetails = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageLoadingStates, setImageLoadingStates] = useState({});
   const [imageErrors, setImageErrors] = useState({});
 
+  console.log('[EventDetails] Component mounted, eventId:', eventId);
+  console.log('[EventDetails] Current URL:', window.location.href);
+
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
         setLoading(true);
+        console.log('[EventDetails] Fetching event details for eventId:', eventId);
         const response = await apiClient.get(`/event/${eventId}/details`);
+        console.log('[EventDetails] API response:', response.data);
         setEvent(response.data);
         setError(null);
       
@@ -61,8 +68,33 @@ const EventDetails = () => {
       }
     };
 
+    const fetchReviews = async () => {
+      try {
+        setReviewsLoading(true);
+        console.log('[EventDetails] Fetching reviews for eventId:', eventId);
+        const response = await apiClient.get(`/events/${eventId}/reviews`);
+        console.log('[EventDetails] Reviews response:', response.data);
+        
+        // Handle both array format and object format with reviews property
+        if (Array.isArray(response.data)) {
+          setReviews(response.data);
+        } else if (response.data && Array.isArray(response.data.reviews)) {
+          setReviews(response.data.reviews);
+        } else {
+          console.warn('[EventDetails] Unexpected reviews format:', response.data);
+          setReviews([]);
+        }
+      } catch (err) {
+        console.error('Error fetching reviews:', err);
+        setReviews([]);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
     if (eventId) {
       fetchEventDetails();
+      fetchReviews();
     }
   }, [eventId]);
 
@@ -356,6 +388,70 @@ const EventDetails = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Reviews Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  Reviews ({reviews.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {reviewsLoading ? (
+                  <div className="text-center py-4">
+                    <div className="text-muted-foreground">Loading reviews...</div>
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Star className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No reviews yet</p>
+                    <p className="text-sm text-muted-foreground">Be the first to review this event!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {reviews.map((review) => (
+                      <div key={review.review_id} className="border-b border-muted pb-4 last:border-b-0">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                            <span className="text-sm font-medium">
+                              {review.reviewer_name ? review.reviewer_name.charAt(0).toUpperCase() : 'A'}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm">
+                                {review.reviewer_name || 'Anonymous'}
+                              </span>
+                              <div className="flex items-center">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-4 w-4 ${
+                                      i < (review.rating || review.stars)
+                                        ? 'text-yellow-500 fill-yellow-500'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {(review.comment || review.body) && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {review.comment || review.body}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}

@@ -21,7 +21,7 @@ export default function EventCard({ event }) {
     } = event;
 
     return (
-        <Link to={`/events/${event_id}`}>
+        <Link to={`/event/${event_id}`}>
             <Card className="h-full overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="aspect-video relative overflow-hidden">
                     <img
