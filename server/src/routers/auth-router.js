@@ -11,9 +11,4 @@ authRouter.post("/register", registerUser)
 authRouter.post("/login", loginUser)
 authRouter.get("/current-user", checkAuth, getCurrentUser)
 
-// TODO
-// authRouter.post("/forgot-password", forgotPassword)
-// authRouter.post("/reset-password", resetPassword)
-// authRouter.post("/change-password", checkAuth, changePassword)
-
 

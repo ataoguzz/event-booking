@@ -577,10 +577,7 @@ const CreateEvent = () => {
                     <h1 className="text-3xl font-bold text-foreground">Create New Event</h1>
                     <p className="text-muted-foreground mt-2">Fill in the details to create your event</p>
                 </div>
-                {/* Conditional rendering for auth/role can be added here if desired */}
-
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Basic Information Card */}
                     <Card>
                         <CardHeader>
                             <CardTitle>Basic Information</CardTitle>
@@ -610,12 +607,11 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Date and Time Card */}
                     <Card>
                         <CardHeader><CardTitle>Date and Time</CardTitle><CardDescription>When will your event take place?</CardDescription></CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Date/Time inputs as provided */}
+
                                 <div className="space-y-2">
                                     <Label>Start Date *</Label>
                                     <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.startDate && "text-muted-foreground", errors.startDate && "border-red-500")}><CalendarIcon className="mr-2 h-4 w-4" />{formData.startDate ? format(formData.startDate, "PPP") : "Pick a date"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.startDate} onSelect={(date) => handleInputChange("startDate", date)} initialFocus /></PopoverContent></Popover>
@@ -640,7 +636,6 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Venue Selection Card */}
                     <Card>
                         <CardHeader><CardTitle>Venue</CardTitle>
                             <CardDescription>
@@ -667,11 +662,10 @@ const CreateEvent = () => {
                                 {errors.venue && <p className="text-sm text-red-500">{errors.venue}</p>}
                                 {errors.venuesApi && <p className="text-sm text-red-500">{errors.venuesApi}</p>}
                             </div>
-                            <Alert><MapPin className="h-4 w-4" /><AlertDescription> Can't find your venue?{" "} <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}><DialogTrigger asChild><Button variant="link" className="p-0 h-auto"> Request a new venue </Button></DialogTrigger><DialogContent> {/* ... Venue Request Dialog ... */} </DialogContent></Dialog> </AlertDescription></Alert>
+                            <Alert><MapPin className="h-4 w-4" /><AlertDescription> Can't find your venue?{" "} <Dialog open={isVenueDialogOpen} onOpenChange={setIsVenueDialogOpen}><DialogTrigger asChild><Button variant="link" className="p-0 h-auto"> Request a new venue </Button></DialogTrigger><DialogContent> </DialogContent></Dialog> </AlertDescription></Alert>
                         </CardContent>
                     </Card>
 
-                    {/* Ticket Tiers Pricing Card */}
                     <Card>
                         <CardHeader>
                             <CardTitle>Ticket Tiers & Pricing</CardTitle>
@@ -685,7 +679,7 @@ const CreateEvent = () => {
                         <CardContent className="space-y-4">
                             {errors.ticketTiersGeneral && <Alert variant="destructive"><AlertDescription>{errors.ticketTiersGeneral}</AlertDescription></Alert>}
                             
-                            {/* Capacity Indicator */}
+
                             {selectedVenue && selectedVenue.capacity > 0 && (
                                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                     <div className="flex justify-between items-center text-sm">
@@ -728,7 +722,7 @@ const CreateEvent = () => {
                             )}
                             
                             {ticketTiers.map((tier, index) => (
-                                <Card key={tier.id} className="p-4 space-y-3 bg-muted/40"> {/* Use key={tier.id} */}
+                                <Card key={tier.id} className="p-4 space-y-3 bg-muted/40">
                                     <div className="flex justify-between items-center">
                                         <Label className="text-base font-semibold">Tier {index + 1}</Label>
                                         {ticketTiers.length > 1 && (
@@ -804,7 +798,6 @@ const CreateEvent = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Seat Assignment Card - only show for seated venues */}
                     {selectedVenue && selectedVenue.isSeated && (
                         <SeatAssignment 
                             selectedVenue={selectedVenue}
@@ -815,7 +808,6 @@ const CreateEvent = () => {
                         />
                     )}
 
-                    {/* Promo Codes Card */}
                     <Card>
                         <CardHeader>
                             <CardTitle>Promo Codes (Optional)</CardTitle>
@@ -847,7 +839,6 @@ const CreateEvent = () => {
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {/* Promo Code */}
                                             <div className="space-y-2">
                                                 <Label htmlFor={`promoCode-${promo.id}`}>Code *</Label>
                                                 <div className="relative">
@@ -865,7 +856,6 @@ const CreateEvent = () => {
                                                 )}
                                             </div>
 
-                                            {/* Discount Type */}
                                             <div className="space-y-2">
                                                 <Label>Discount Type *</Label>
                                                 <Select 
@@ -882,7 +872,6 @@ const CreateEvent = () => {
                                                 </Select>
                                             </div>
 
-                                            {/* Discount Value */}
                                             <div className="space-y-2">
                                                 <Label htmlFor={`discountValue-${promo.id}`}>
                                                     Discount Value * {promo.discountType === 'PERCENT' ? '(%)' : '($)'}
@@ -910,7 +899,6 @@ const CreateEvent = () => {
                                                 )}
                                             </div>
 
-                                            {/* Usage Limit */}
                                             <div className="space-y-2">
                                                 <Label htmlFor={`usageLimit-${promo.id}`}>Usage Limit</Label>
                                                 <div className="relative">
@@ -932,7 +920,6 @@ const CreateEvent = () => {
                                                 <p className="text-xs text-muted-foreground">Leave empty for unlimited uses</p>
                                             </div>
 
-                                            {/* Start Date */}
                                             <div className="space-y-2">
                                                 <Label>Start Date (Optional)</Label>
                                                 <Popover>
@@ -959,7 +946,6 @@ const CreateEvent = () => {
                                                 </Popover>
                                             </div>
 
-                                            {/* End Date */}
                                             <div className="space-y-2">
                                                 <Label>End Date (Optional)</Label>
                                                 <Popover>
@@ -991,7 +977,6 @@ const CreateEvent = () => {
                                             </div>
                                         </div>
 
-                                        {/* Promo Code Preview */}
                                         <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                             <div className="text-sm">
                                                 <span className="font-medium">Preview: </span>

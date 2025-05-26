@@ -4,11 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -26,7 +24,6 @@ export const uploadProfileImage = async (req, res, next) => {
             return res.status(401).json({ message: 'Not authorized, user identification missing.' });
         }
         
-        // Check if user is an organizer
         const roleCheck = await query('SELECT role FROM accounts WHERE account_id = $1', [accountId]);
         
         if (roleCheck.rows.length === 0) {
@@ -37,15 +34,12 @@ export const uploadProfileImage = async (req, res, next) => {
             return res.status(403).json({ message: 'Only organizers can update their profile image.' });
         }
 
-        // Generate a unique filename based on accountId and timestamp
         const fileExtension = path.extname(req.file.originalname);
         const fileName = `profile_${accountId}_${Date.now()}${fileExtension}`;
         const filePath = path.join(uploadsDir, fileName);
         
-        // Write the file to disk
         fs.writeFileSync(filePath, req.file.buffer);
         
-        // Update the avatar_url in the database
         const fileUrl = `/uploads/${fileName}`;
         
         const updateQuery = `
@@ -83,7 +77,6 @@ export const updateOrganizerProfile = async (req, res, next) => {
             return res.status(401).json({ message: 'Not authorized, user identification missing.' });
         }
         
-        // Check if user is an organizer
         const roleCheck = await query('SELECT role FROM accounts WHERE account_id = $1', [accountId]);
         
         if (roleCheck.rows.length === 0) {
@@ -96,12 +89,10 @@ export const updateOrganizerProfile = async (req, res, next) => {
         
         const { display_name, bio, avatar_url, email } = req.body;
         
-        // Validate required fields
         if (!display_name) {
             return res.status(400).json({ message: 'Display name is required.' });
         }
         
-        // Get the current profile to preserve avatar_url if not provided
         let currentProfile = null;
         if (!avatar_url) {
             const currentProfileQuery = 'SELECT avatar_url FROM organizers WHERE account_id = $1';
@@ -111,7 +102,6 @@ export const updateOrganizerProfile = async (req, res, next) => {
             }
         }
         
-        // If email is provided, check if it's already taken by another account
         if (email) {
             const emailCheckQuery = 'SELECT account_id FROM accounts WHERE email = $1 AND account_id <> $2';
             const emailCheckResult = await query(emailCheckQuery, [email.toLowerCase(), accountId]);
@@ -119,12 +109,10 @@ export const updateOrganizerProfile = async (req, res, next) => {
             if (emailCheckResult.rows.length > 0) {
                 return res.status(409).json({ message: 'Email is already in use by another account.' });
             }
-            
-            // Update the email in the accounts table
+       
             await query('UPDATE accounts SET email = $1 WHERE account_id = $2', [email.toLowerCase(), accountId]);
         }
         
-        // Update the organizer profile - check if updated_at column exists in the table
         const updateQuery = `
             UPDATE organizers 
             SET 
@@ -145,12 +133,11 @@ export const updateOrganizerProfile = async (req, res, next) => {
             return res.status(404).json({ message: 'Organizer profile not found.' });
         }
         
-        // If email was updated, include it in the response
         let profileResponse = result.rows[0];
         if (email) {
             profileResponse.email = email.toLowerCase();
         } else {
-            // Get the current email to include in the response
+        
             const emailQuery = 'SELECT email FROM accounts WHERE account_id = $1';
             const emailResult = await query(emailQuery, [accountId]);
             if (emailResult.rows.length > 0) {
@@ -177,7 +164,6 @@ export const getOrganizerProfile = async (req, res, next) => {
             return res.status(401).json({ message: 'Not authorized, user identification missing.' });
         }
         
-        // Check if user is an organizer
         const roleCheck = await query('SELECT role FROM accounts WHERE account_id = $1', [accountId]);
         
         if (roleCheck.rows.length === 0) {
@@ -200,7 +186,6 @@ export const getOrganizerProfile = async (req, res, next) => {
             return res.status(404).json({ message: 'Organizer profile not found.' });
         }
         
-        // Process avatar URL
         const profileData = result.rows[0];
         profileData.avatar_url = getImageUrl(profileData.avatar_url);
         

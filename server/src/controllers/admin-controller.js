@@ -39,10 +39,8 @@ export const getVenuesRequests = async (req, res, next) => {
       }
       queryText += ` ORDER BY vr.created_at DESC`;
 
-      // Get filtered requests
       const result = await client.query(queryText, values);
 
-      // Get counts for each status (no filters except city/search)
       let countQuery = `
         SELECT status, COUNT(*) as count
         FROM venue_requests
@@ -150,13 +148,12 @@ export const evaluateVenueRequest = async (req, res, next) => {
             ]);
             const venue = venueResult.rows[0];
 
-            // Insert seats if the venue is seated and rows/columns are provided
             if (
               request.is_seated &&
               request.requested_layout_rows &&
               request.requested_layout_cols
             ) {
-              // Ensure these are integers
+             
               const numRows = parseInt(request.requested_layout_rows, 10);
               const numCols = parseInt(request.requested_layout_cols, 10);
 
@@ -244,9 +241,9 @@ export const getAllEvents = async (req, res, next) => {
         JOIN venues v ON e.venue_id = v.venue_id
       `;
   
-      // Array to hold WHERE conditions
+   
       const conditions = [];
-      // Array to hold parameter values for parameterized query
+  
       const values = [];
   
       // Add filters if they exist

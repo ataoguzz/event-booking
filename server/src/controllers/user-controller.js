@@ -3,11 +3,9 @@ import { getImageUrl, processImageUrls } from '../utils/imageUtils.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper functions
 const toInt = (val, defaultVal) => {
     const parsed = parseInt(val, 10);
     return isNaN(parsed) ? defaultVal : parsed;
@@ -90,12 +88,10 @@ export const getOrganizers = async (req, res) => {
         limit,    // $3
         offset    // $4
       ]);
-  
-      // Process image URLs for organizers and their featured events
+ 
       const processedRows = rows.map(row => {
         const processed = processImageUrls(row, ['avatar_url']);
         
-        // Process featured event cover_url if it exists
         if (processed.featured_event && processed.featured_event.cover_url) {
           processed.featured_event.cover_url = getImageUrl(processed.featured_event.cover_url);
         }
@@ -136,7 +132,6 @@ export const followOrganizer = async (req, res) => {
     try {
       await client.query('BEGIN');
       
-      // Check if organizer exists
       const organizerCheck = await client.query(
         'SELECT account_id FROM organizers WHERE account_id = $1',
         [orgId]
@@ -147,7 +142,6 @@ export const followOrganizer = async (req, res) => {
         return res.status(404).json({ error: 'Organizer not found' });
       }
       
-      // Check if current user is an attendee
       const attendeeCheck = await client.query(
         'SELECT account_id FROM attendees WHERE account_id = $1',
         [req.user.accountId]
@@ -330,7 +324,6 @@ export const getTransactions = async (req, res) => {
         let whereClause = 'WHERE t.attendee_account_id = $1';
         const queryParams = [accountId];
         
-        // Add filter conditions
         if (filter === 'deposits') {
             whereClause += ' AND t.tx_type = $2';
             queryParams.push('TOP_UP');

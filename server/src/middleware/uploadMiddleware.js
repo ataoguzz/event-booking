@@ -5,7 +5,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-// Helper to get __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -27,7 +26,6 @@ const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
         cb(null, true);
     } else {
-        // Pass an error to multer
         cb(new Error('Not an image! Please upload only images.'), false);
     }
 };
@@ -35,7 +33,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 1024 * 1024 * 10 // 10MB per file
+        fileSize: 1024 * 1024 * 10
     },
     fileFilter: fileFilter
 });
