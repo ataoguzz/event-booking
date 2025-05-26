@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -7,90 +7,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.j
 import { Badge } from '@/components/ui/badge.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.jsx';
-import { QrCode, Calendar, Clock, MapPin, Download, Eye, Star, Search, Ticket } from 'lucide-react';
+import { Calendar, Clock, MapPin, Download, Eye, Star, Search, Ticket, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
+import QRCode from 'react-qr-code';
+import apiClient from '../../helpers/apiCore.js';
 
 export default function MyTickets() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Mock data - would come from API in real app
-  const tickets = [
-    {
-      id: 'TIX-001-28974',
-      eventId: 1,
-      eventName: 'Summer Music Festival',
-      date: '2023-07-15',
-      time: '18:00',
-      venue: 'Central Park',
-      location: 'New York, NY',
-      seat: 'General Admission',
-      price: 75,
-      purchaseDate: '2023-05-10',
-      status: 'upcoming',
-      imageUrl: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1740&q=80'
-    },
-    {
-      id: 'TIX-002-39281',
-      eventId: 2,
-      eventName: 'Tech Conference 2023',
-      date: '2023-09-10',
-      time: '09:00',
-      venue: 'Convention Center',
-      location: 'San Francisco, CA',
-      seat: 'VIP Pass',
-      price: 250,
-      purchaseDate: '2023-06-22',
-      status: 'upcoming',
-      imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80'
-    },
-    {
-      id: 'TIX-003-12938',
-      eventId: 3,
-      eventName: 'Comedy Night',
-      date: '2023-06-25',
-      time: '20:00',
-      venue: 'The Laugh Factory',
-      location: 'Los Angeles, CA',
-      seat: 'Row C, Seat 15',
-      price: 35,
-      purchaseDate: '2023-06-02',
-      status: 'past',
-      imageUrl: 'https://images.unsplash.com/photo-1527224538127-2104bb71c51b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1171&q=80',
-      attended: true,
-      reviewed: true,
-      rating: 5
-    },
-    {
-      id: 'TIX-004-84721',
-      eventId: 4,
-      eventName: 'Art Exhibition',
-      date: '2023-04-05',
-      time: '10:00',
-      venue: 'Modern Art Gallery',
-      location: 'Chicago, IL',
-      seat: 'General Admission',
-      price: 20,
-      purchaseDate: '2023-03-28',
-      status: 'past',
-      imageUrl: 'https://images.unsplash.com/photo-1531058020387-3be344556be6?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-      attended: true,
-      reviewed: false
-    },
-    {
-      id: 'TIX-005-37201',
-      eventId: 5,
-      eventName: 'Jazz in the Garden',
-      date: '2023-06-30',
-      time: '19:30',
-      venue: 'Botanical Gardens',
-      location: 'Boston, MA',
-      seat: 'Section B, Row 5',
-      price: 45,
-      purchaseDate: '2023-05-15',
-      status: 'upcoming',
-      imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1074&q=80'
-    }
-  ];
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get('/tickets');
+        setTickets(response.data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching tickets:', err);
+        setError(err.response?.data?.error || 'Failed to fetch tickets');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTickets();
+  }, []);
 
   const upcomingTickets = tickets.filter(ticket => ticket.status === 'upcoming');
   const pastTickets = tickets.filter(ticket => ticket.status === 'past');
@@ -99,34 +44,85 @@ export default function MyTickets() {
   const filteredTickets = tickets.filter(ticket => 
     ticket.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
+    ticket.id.toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
   
   const filteredUpcomingTickets = upcomingTickets.filter(ticket => 
     ticket.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
+    ticket.id.toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
   
   const filteredPastTickets = pastTickets.filter(ticket => 
     ticket.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
+    ticket.id.toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleViewTicket = (ticket) => {
-    setSelectedTicket(ticket);
+  const handleViewTicket = async (ticket) => {
+    try {
+      // Fetch detailed ticket information
+      const response = await apiClient.get(`/tickets/${ticket.id}`);
+      setSelectedTicket(response.data);
+    } catch (err) {
+      console.error('Error fetching ticket details:', err);
+      alert('Failed to load ticket details');
+    }
   };
 
   const closeTicketDialog = () => {
     setSelectedTicket(null);
   };
 
-  const handleDownloadTicket = (ticketId) => {
-    // This would connect to an API endpoint to generate and download the PDF ticket
-    console.log(`Downloading ticket ${ticketId}`);
-    alert(`Ticket ${ticketId} downloaded successfully!`);
+  const handleDownloadTicket = async (ticketId) => {
+    try {
+      // Download PDF using the new downloadFile method
+      const response = await apiClient.downloadFile(`/tickets/${ticketId}/download`);
+      
+      // Create blob URL and download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ticket-${ticketId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+    } catch (err) {
+      console.error('Error downloading ticket:', err);
+      alert('Failed to download ticket PDF');
+    }
   };
+
+  const generateQRCodeData = (ticket) => {
+    // Generate the same QR data structure as the backend
+    return {
+      ticket_id: ticket.id,
+      event_id: ticket.eventId,
+      qr_token: ticket.qr_token,
+      guest_name: ticket.guestName,
+      seat: ticket.seat,
+      date: ticket.date,
+      verification_hash: btoa(`${ticket.id}-${ticket.qr_token}-${ticket.eventId}`)
+    };
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto py-8 px-4">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading your tickets...</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -135,6 +131,13 @@ export default function MyTickets() {
           <h1 className="text-3xl font-bold text-foreground">My Tickets</h1>
           <p className="text-muted-foreground mt-1">Manage your purchased tickets and reservations</p>
         </div>
+
+        {error && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Ticket Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -162,7 +165,7 @@ export default function MyTickets() {
             </CardHeader>
             <CardContent>
               <p className="text-4xl font-bold">
-                ${tickets.reduce((sum, ticket) => sum + ticket.price, 0)}
+                ${tickets.reduce((sum, ticket) => sum + (ticket.price || 0), 0).toFixed(2)}
               </p>
             </CardContent>
           </Card>
@@ -227,8 +230,15 @@ export default function MyTickets() {
             <div className="space-y-4">
               <div className="p-4 border rounded-lg flex justify-center">
                 <div className="text-center">
-                  <QrCode size={150} className="mx-auto mb-2" />
-                  <p className="text-sm font-mono">{selectedTicket.id}</p>
+                  <div className="bg-white p-4 border rounded-lg inline-block">
+                    <QRCode 
+                      value={JSON.stringify(generateQRCodeData(selectedTicket))}
+                      size={150}
+                      style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                    />
+                  </div>
+                  <p className="text-sm font-mono mt-2">Ticket ID: {selectedTicket.id}</p>
+                  <p className="text-xs text-gray-500 mt-1">Present this QR code at entry</p>
                 </div>
               </div>
               
@@ -241,28 +251,54 @@ export default function MyTickets() {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Date & Time</span>
                   <span className="font-medium">
-                    {new Date(selectedTicket.date).toLocaleDateString()} at {selectedTicket.time}
+                    {new Date(selectedTicket.date).toLocaleDateString()} at {selectedTicket.time || 'TBD'}
                   </span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Venue</span>
-                  <span className="font-medium">{selectedTicket.venue}, {selectedTicket.location}</span>
+                  <span className="font-medium">{selectedTicket.venue}</span>
                 </div>
+
+                {selectedTicket.venueAddress && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Address</span>
+                    <span className="font-medium">{selectedTicket.venueAddress}, {selectedTicket.location}</span>
+                  </div>
+                )}
                 
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Seat</span>
+                  <span className="text-sm text-muted-foreground">Seat/Tier</span>
                   <span className="font-medium">{selectedTicket.seat}</span>
                 </div>
                 
                 <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Guest</span>
+                  <span className="font-medium">{selectedTicket.guestName}</span>
+                </div>
+
+                {selectedTicket.guestEmail && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span className="font-medium">{selectedTicket.guestEmail}</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Price</span>
-                  <span className="font-medium">${selectedTicket.price}</span>
+                  <span className="font-medium">${selectedTicket.price?.toFixed(2)}</span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Purchase Date</span>
                   <span className="font-medium">{new Date(selectedTicket.purchaseDate).toLocaleDateString()}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <Badge variant={selectedTicket.ticketStatus === 'PURCHASED' ? 'default' : 'secondary'}>
+                    {selectedTicket.ticketStatus}
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -297,88 +333,95 @@ function TicketsList({ tickets, onViewTicket, onDownloadTicket }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {tickets.map((ticket) => (
-        <Card key={ticket.id} className="overflow-hidden">
-          <div className="relative h-48">
-            <img 
-              src={ticket.imageUrl} 
-              alt={ticket.eventName}
-              className="w-full h-full object-cover" 
-            />
-            <Badge 
-              className={`absolute top-4 right-4 ${
-                ticket.status === 'upcoming' ? 'bg-green-500' : 'bg-gray-500'
-              }`}
-            >
-              {ticket.status === 'upcoming' ? 'Upcoming' : 'Past'}
-            </Badge>
-          </div>
-          
-          <CardHeader>
-            <CardTitle className="text-xl">{ticket.eventName}</CardTitle>
-            <CardDescription>{ticket.seat}</CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-2">
-            <div className="flex items-center text-sm">
-              <Calendar size={16} className="mr-2 text-gray-500" />
-              <span>{new Date(ticket.date).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}</span>
-            </div>
-            
-            <div className="flex items-center text-sm">
-              <Clock size={16} className="mr-2 text-gray-500" />
-              <span>{ticket.time}</span>
-            </div>
-            
-            <div className="flex items-center text-sm">
-              <MapPin size={16} className="mr-2 text-gray-500" />
-              <span>{ticket.venue}, {ticket.location}</span>
-            </div>
-            
-            <div className="flex items-center text-sm">
-              <Ticket size={16} className="mr-2 text-gray-500" />
-              <span>Ticket ID: {ticket.id}</span>
-            </div>
-            
-            {ticket.status === 'past' && ticket.reviewed && (
-              <div className="flex items-center text-sm">
-                <Star size={16} className="mr-2 text-yellow-500 fill-yellow-500" />
-                <span>Your rating: {ticket.rating}/5</span>
-              </div>
-            )}
-          </CardContent>
-          
-          <CardFooter className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => onViewTicket(ticket)}>
-              <Eye size={16} className="mr-2" />
-              View
-            </Button>
-            
-            <Button 
-              className="flex-1" 
-              onClick={() => onDownloadTicket(ticket.id)}
-            >
-              <Download size={16} className="mr-2" />
-              PDF
-            </Button>
-            
-            {ticket.status === 'past' && !ticket.reviewed && (
-              <Button variant="outline" className="flex-1" asChild>
-                <Link to={`/events/${ticket.eventId}/review`}>
-                  <Star size={16} className="mr-2" />
-                  Review
-                </Link>
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-      ))}
+    <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-muted/50">
+            <tr className="border-b">
+              <th className="text-left p-4 font-medium">Event</th>
+              <th className="text-left p-4 font-medium">Date</th>
+              <th className="text-left p-4 font-medium">Venue</th>
+              <th className="text-left p-4 font-medium">Seat/Tier</th>
+              <th className="text-left p-4 font-medium">Guest</th>
+              <th className="text-left p-4 font-medium">Price</th>
+              <th className="text-left p-4 font-medium">Status</th>
+              <th className="text-left p-4 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tickets.map((ticket) => (
+              <tr key={ticket.id} className="border-b hover:bg-muted/30 transition-colors">
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={ticket.imageUrl} 
+                      alt={ticket.eventName}
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                    <div>
+                      <div className="font-medium text-sm">{ticket.eventName}</div>
+                      <div className="text-xs text-muted-foreground">ID: {ticket.id}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm">
+                    {new Date(ticket.date).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
+                  </div>
+                  {ticket.time && (
+                    <div className="text-xs text-muted-foreground">{ticket.time}</div>
+                  )}
+                </td>
+                <td className="p-4">
+                  <div className="text-sm">{ticket.venue}</div>
+                  <div className="text-xs text-muted-foreground">{ticket.location}</div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm">{ticket.seat}</div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm">{ticket.guestName}</div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm font-medium">
+                    {ticket.price ? `$${ticket.price.toFixed(2)}` : 'Free'}
+                  </div>
+                </td>
+                <td className="p-4">
+                  <Badge variant={ticket.status === 'upcoming' ? 'default' : 'secondary'} className="text-xs">
+                    {ticket.status === 'upcoming' ? 'Upcoming' : 'Past'}
+                  </Badge>
+                </td>
+                <td className="p-4">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onViewTicket(ticket)}
+                      className="text-xs"
+                    >
+                      <Eye size={14} className="mr-1" />
+                      View
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => onDownloadTicket(ticket.id)}
+                      className="text-xs"
+                    >
+                      <Download size={14} className="mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 } 

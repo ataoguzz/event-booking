@@ -23,49 +23,13 @@ import {
   Wifi,
   Car,
   Coffee,
-  Accessibility
+  Accessibility,
+  Utensils,
+  Wine,
+  Bus,
+  CreditCard
 } from 'lucide-react';
-
-// Mock data - replace with API call
-const mockEventDetails = {
-  event_id: 1,
-  title: 'Tech Conference 2024',
-  description: 'Join us for the annual Tech Conference, bringing together the brightest minds in technology and innovation. Explore the latest trends, network with industry leaders, and gain valuable insights into the future of tech.',
-  rules: '• All attendees must have a valid ticket\n• No outside food or beverages allowed\n• Recording of sessions is prohibited without prior consent\n• Be respectful to speakers and fellow attendees\n• Please arrive 30 minutes before the event starts',
-  start_at: '2024-10-26T09:00:00Z',
-  end_at: '2024-10-28T17:00:00Z',
-  status: 'PUBLISHED',
-  hero_image_url: 'https://via.placeholder.com/1200x600.png?text=Event+Hero+Image',
-  images: [
-    { url: 'https://via.placeholder.com/800x400.png?text=Event+Image+1', caption: 'Keynote Session' },
-    { url: 'https://via.placeholder.com/800x400.png?text=Event+Image+2', caption: 'Networking Event' },
-    { url: 'https://via.placeholder.com/800x400.png?text=Event+Image+3', caption: 'Workshop' }
-  ],
-  organizer: {
-    display_name: 'Tech Event Organizers Inc.',
-    avatar_url: 'https://via.placeholder.com/100.png?text=Org+Logo',
-    rating: 4.8
-  },
-  venue: {
-    venue_id: 101,
-    name: 'Grand Convention Center',
-    address: '123 Innovation Drive',
-    city: 'Techville',
-    capacity: 2500,
-    is_seated: true,
-    facilities: [
-      { facility_id: 1, name: 'Wi-Fi' },
-      { facility_id: 2, name: 'Parking' },
-      { facility_id: 3, name: 'Cafe' },
-      { facility_id: 4, name: 'Wheelchair Accessible' }
-    ]
-  },
-  ticket_tiers: [
-    { tier: 'General Admission', price: 199.99 },
-    { tier: 'VIP Pass', price: 499.99 },
-    { tier: 'Student Pass', price: 99.99 }
-  ]
-};
+import apiClient from '../../helpers/apiCore.js';
 
 const EventDetails = () => {
   const { eventId } = useParams();
@@ -74,32 +38,54 @@ const EventDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [selectedTicketTier, setSelectedTicketTier] = useState(null);
+  const [imageLoadingStates, setImageLoadingStates] = useState({});
+  const [imageErrors, setImageErrors] = useState({});
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // fetch(`/api/events/${eventId}/details`)
-    //   .then(res => {
-    //     if (!res.ok) {
-    //       throw new Error('Failed to fetch event details');
-    //     }
-    //     return res.json();
-    //   })
-    //   .then(data => {
-    //     setEvent(data);
-    //     setLoading(false);
-    //   })
-    //   .catch(err => {
-    //     setError(err.message);
-    //     setLoading(false);
-    //   });
+    const fetchEventDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/event/${eventId}/details`);
+        setEvent(response.data);
+        setError(null);
+      
+        setCurrentImageIndex(0);
+        setImageLoadingStates({});
+        setImageErrors({});
+        
+      } catch (err) {
+        console.error('Error fetching event details:', err);
+        setError(err.response?.data?.error || 'Failed to fetch event details');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Using mock data for now
-    setTimeout(() => {
-      setEvent(mockEventDetails);
-      setLoading(false);
-    }, 1000);
+    if (eventId) {
+      fetchEventDetails();
+    }
   }, [eventId]);
+
+  // Preload images when event data is loaded
+  useEffect(() => {
+    if (event?.images?.length > 0) {
+      event.images.forEach((image, index) => {
+        const img = new Image();
+        setImageLoadingStates(prev => ({ ...prev, [index]: true }));
+        
+        img.onload = () => {
+          setImageLoadingStates(prev => ({ ...prev, [index]: false }));
+        };
+        
+        img.onerror = () => {
+          setImageLoadingStates(prev => ({ ...prev, [index]: false }));
+          setImageErrors(prev => ({ ...prev, [index]: true }));
+        };
+        
+        img.src = image.url;
+      });
+    }
+  }, [event?.images]);
 
   if (loading) {
     return (
@@ -150,19 +136,19 @@ const EventDetails = () => {
   const getFacilityIcon = (facilityName) => {
     const name = facilityName.toLowerCase();
     if (name.includes('wifi') || name.includes('wi-fi')) return <Wifi className="h-4 w-4" />;
-    if (name.includes('parking') || name.includes('car')) return <Car className="h-4 w-4" />;
+    if (name.includes('parking')) return <Car className="h-4 w-4" />;
     if (name.includes('cafe') || name.includes('coffee') || name.includes('food')) return <Coffee className="h-4 w-4" />;
-    if (name.includes('wheelchair') || name.includes('accessible')) return <Accessibility className="h-4 w-4" />;
+    if (name.includes('wheelchair') || name.includes('access')) return <Accessibility className="h-4 w-4" />;
+    if (name.includes('restaurant')) return <Utensils className="h-4 w-4" />;
+    if (name.includes('bar')) return <Wine className="h-4 w-4" />;
+    if (name.includes('transport') || name.includes('bus') || name.includes('train')) return <Bus className="h-4 w-4" />;
+    if (name.includes('atm')) return <CreditCard className="h-4 w-4" />;
     return null;
   };
 
   const handleProceedToBooking = () => {
-    if (selectedTicketTier) {
-      const url = event.venue.is_seated 
-        ? `/events/${event.event_id}/choose-seat?tier=${encodeURIComponent(selectedTicketTier)}`
-        : `/events/${event.event_id}/purchase-tickets?tier=${encodeURIComponent(selectedTicketTier)}`;
-      navigate(url);
-    }
+    // Always navigate to the seat selection page (it handles both seated and non-seated events)
+    navigate(`/event/${event.event_id}/choose-seat`);
   };
 
   return (
@@ -251,12 +237,31 @@ const EventDetails = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="relative">
-                    <div className="aspect-video relative overflow-hidden rounded-lg">
-                      <img 
-                        src={event.images[currentImageIndex].url} 
-                        alt={event.images[currentImageIndex].caption || `Event image ${currentImageIndex + 1}`} 
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="aspect-video relative overflow-hidden rounded-lg bg-gray-100">
+                      {imageLoadingStates[currentImageIndex] && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-gray-500">Loading image...</div>
+                        </div>
+                      )}
+                      
+                      {imageErrors[currentImageIndex] ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                          <div className="text-gray-500">Failed to load image</div>
+                        </div>
+                      ) : (
+                        <img 
+                          key={`image-${currentImageIndex}`}
+                          src={event.images[currentImageIndex].url} 
+                          alt={event.images[currentImageIndex].caption || `Event image ${currentImageIndex + 1}`} 
+                          className="w-full h-full object-cover"
+                          onLoad={() => setImageLoadingStates(prev => ({ ...prev, [currentImageIndex]: false }))}
+                          onError={() => {
+                            setImageLoadingStates(prev => ({ ...prev, [currentImageIndex]: false }));
+                            setImageErrors(prev => ({ ...prev, [currentImageIndex]: true }));
+                          }}
+                        />
+                      )}
+                      
                       {event.images.length > 1 && (
                         <>
                           <Button
@@ -278,7 +283,7 @@ const EventDetails = () => {
                         </>
                       )}
                     </div>
-                    {event.images[currentImageIndex].caption && (
+                    {event.images[currentImageIndex]?.caption && (
                       <p className="text-center text-sm text-muted-foreground mt-2">
                         {event.images[currentImageIndex].caption}
                       </p>
@@ -358,8 +363,8 @@ const EventDetails = () => {
             {/* Ticket Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Select Ticket Tier</CardTitle>
-                <CardDescription>Choose your ticket tier to continue</CardDescription>
+                <CardTitle>Available Ticket Tiers</CardTitle>
+                <CardDescription>Ticket options for this event</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {event.ticket_tiers && event.ticket_tiers.length > 0 ? (
@@ -367,25 +372,14 @@ const EventDetails = () => {
                     {event.ticket_tiers.map(tier => (
                       <div 
                         key={tier.tier} 
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          selectedTicketTier === tier.tier 
-                            ? 'border-primary bg-primary/5' 
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => setSelectedTicketTier(tier.tier)}
+                        className="p-3 border rounded-lg"
                       >
                         <div className="flex justify-between items-center">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                              selectedTicketTier === tier.tier 
-                                ? 'border-primary bg-primary' 
-                                : 'border-muted-foreground'
-                            }`}>
-                              {selectedTicketTier === tier.tier && (
-                                <div className="w-2 h-2 rounded-full bg-white"></div>
-                              )}
-                            </div>
+                          <div>
                             <p className="font-medium">{tier.tier}</p>
+                            {tier.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{tier.description}</p>
+                            )}
                           </div>
                           <Badge variant="secondary" className="text-lg font-bold">
                             ${tier.price.toFixed(2)}
@@ -404,10 +398,9 @@ const EventDetails = () => {
                   <Button 
                     className="w-full" 
                     size="lg"
-                    disabled={!selectedTicketTier}
                     onClick={handleProceedToBooking}
                   >
-                    {event.venue.is_seated ? 'Choose Seat' : 'Purchase Tickets'}
+                    {event.venue.is_seated ? 'Choose Seats' : 'Buy Tickets'}
                   </Button>
                 ) : (
                   <div className="text-center text-sm text-muted-foreground p-4 bg-muted rounded-lg">
@@ -415,12 +408,6 @@ const EventDetails = () => {
                      event.status === 'COMPLETED' ? 'This event has ended.' :
                      'Tickets are not yet available for this event.'}
                   </div>
-                )}
-
-                {!selectedTicketTier && event.status === 'PUBLISHED' && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Please select a ticket tier to continue
-                  </p>
                 )}
               </CardContent>
             </Card>
@@ -431,21 +418,26 @@ const EventDetails = () => {
                 <CardHeader>
                   <CardTitle>Event Organizer</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
-                    <img 
-                      src={event.organizer.avatar_url} 
-                      alt={event.organizer.display_name} 
-                      className="w-12 h-12 rounded-full object-cover flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0 pr-2">
-                      <p className="font-medium text-sm leading-tight break-words">
+                <CardContent>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+                      <img 
+                        src={event.organizer.avatar_url} 
+                        alt="" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Link 
+                        to={`/organizers/${event.organizer.account_id}`}
+                        className="text-sm font-medium text-gray-900 hover:text-blue-600 block transition-colors"
+                      >
                         {event.organizer.display_name}
-                      </p>
+                      </Link>
                       {event.organizer.rating && (
-                        <div className="flex items-center space-x-1 mt-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 flex-shrink-0" />
-                          <span className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs text-gray-500">
                             {event.organizer.rating.toFixed(1)}
                           </span>
                         </div>

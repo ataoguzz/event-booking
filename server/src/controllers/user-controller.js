@@ -250,4 +250,268 @@ export const unfollowOrganizer = async (req, res) => {
     }
   };
 
+export const getWalletInfo = async (req, res) => {
+    try {
+        const { accountId } = req.user;
+        
+        const balanceQuery = `
+            SELECT balance 
+            FROM attendees 
+            WHERE account_id = $1
+        `;
+        const { rows: balanceRows } = await query(balanceQuery, [accountId]);
+        
+        if (balanceRows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const balance = parseFloat(balanceRows[0].balance);
+        
+        const currentMonth = new Date();
+        const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        
+        const statsQuery = `
+            SELECT 
+                tx_type,
+                SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_added,
+                SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_spent,
+                COUNT(*) as transaction_count
+            FROM transactions 
+            WHERE attendee_account_id = $1 
+            AND created_at >= $2
+            GROUP BY tx_type
+        `;
+        const { rows: statsRows } = await query(statsQuery, [accountId, firstDayOfMonth]);
+        
+        let monthlySpent = 0;
+        let monthlyAdded = 0;
+        let totalTransactions = 0;
+        
+        statsRows.forEach(row => {
+            if (row.tx_type === 'TICKET_PURCHASE') {
+                monthlySpent += parseFloat(row.total_spent);
+            } else if (row.tx_type === 'TOP_UP') {
+                monthlyAdded += parseFloat(row.total_added);
+            }
+            totalTransactions += parseInt(row.transaction_count);
+        });
+        
+        res.json({
+            balance: balance,
+            monthly_spent: monthlySpent,
+            monthly_added: monthlyAdded,
+            total_transactions: totalTransactions
+        });
+        
+    } catch (err) {
+        console.error('Error fetching wallet info:', err);
+        res.status(500).json({ error: 'Failed to fetch wallet information', details: err.message });
+    }
+};
+
+export const getTransactions = async (req, res) => {
+    try {
+        const { accountId } = req.user;
+        const { filter = 'all', limit = 50, offset = 0 } = req.query;
+        
+        let whereClause = 'WHERE t.attendee_account_id = $1';
+        const queryParams = [accountId];
+        
+        // Add filter conditions
+        if (filter === 'deposits') {
+            whereClause += ' AND t.tx_type = $2';
+            queryParams.push('TOP_UP');
+        } else if (filter === 'expenses') {
+            whereClause += ' AND t.tx_type = $2';
+            queryParams.push('TICKET_PURCHASE');
+        }
+        
+        const transactionsQuery = `
+            SELECT 
+                t.tx_id,
+                t.tx_type,
+                t.amount,
+                t.note,
+                t.created_at,
+                e.title as event_title,
+                e.event_id
+            FROM transactions t
+            LEFT JOIN tickets tk ON t.tx_id = tk.tx_id
+            LEFT JOIN events e ON tk.event_id = e.event_id
+            ${whereClause}
+            ORDER BY t.created_at DESC
+            LIMIT $${queryParams.length + 1}
+            OFFSET $${queryParams.length + 2}
+        `;
+        
+        queryParams.push(limit, offset);
+        const { rows } = await query(transactionsQuery, queryParams);
+        
+        // Format transactions for frontend
+        const transactions = rows.map(row => ({
+            id: row.tx_id,
+            type: row.tx_type === 'TOP_UP' ? 'deposit' : 'expense',
+            description: row.tx_type === 'TOP_UP' ? 
+                (row.note || 'Wallet Top-up') : 
+                (row.event_title ? `${row.event_title} Ticket` : 'Ticket Purchase'),
+            amount: parseFloat(row.amount),
+            date: row.created_at.toISOString().split('T')[0],
+            time: row.created_at.toTimeString().slice(0, 5),
+            status: 'completed',
+            event_id: row.event_id
+        }));
+        
+        res.json(transactions);
+        
+    } catch (err) {
+        console.error('Error fetching transactions:', err);
+        res.status(500).json({ error: 'Failed to fetch transactions', details: err.message });
+    }
+};
+
+export const topUpBalance = async (req, res) => {
+    try {
+        const { accountId } = req.user;
+        const { amount, card_data } = req.body;
+        
+        // Validate amount
+        const topUpAmount = parseFloat(amount);
+        if (!topUpAmount || topUpAmount <= 0 || topUpAmount > 10000) {
+            return res.status(400).json({ error: 'Invalid amount. Must be between $0.01 and $10,000' });
+        }
+        
+        // Mock credit card validation (always accept)
+        if (!card_data || !card_data.number || !card_data.expiry || !card_data.cvv || !card_data.name) {
+            return res.status(400).json({ error: 'Please provide complete credit card information' });
+        }
+        
+        // Simulate processing delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Start transaction
+        const client = await getClient();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Insert transaction record
+            const insertTxQuery = `
+                INSERT INTO transactions (attendee_account_id, tx_type, amount, note)
+                VALUES ($1, 'TOP_UP', $2, $3)
+                RETURNING tx_id, created_at
+            `;
+            const { rows: txRows } = await client.query(insertTxQuery, [
+                accountId, 
+                topUpAmount, 
+                `Credit card top-up - **** ${card_data.number.slice(-4)}`
+            ]);
+            
+            // Update user balance
+            const updateBalanceQuery = `
+                UPDATE attendees 
+                SET balance = balance + $1 
+                WHERE account_id = $2
+                RETURNING balance
+            `;
+            const { rows: balanceRows } = await client.query(updateBalanceQuery, [topUpAmount, accountId]);
+            
+            await client.query('COMMIT');
+            
+            res.json({
+                success: true,
+                transaction_id: txRows[0].tx_id,
+                new_balance: parseFloat(balanceRows[0].balance),
+                amount: topUpAmount,
+                timestamp: txRows[0].created_at
+            });
+            
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+        
+    } catch (err) {
+        console.error('Error processing top-up:', err);
+        res.status(500).json({ error: 'Failed to process top-up', details: err.message });
+    }
+};
+
+export const getFollowedEvents = async (req, res) => {
+    try {
+        const { accountId } = req.user;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = parseInt(req.query.offset) || 0;
+
+        const eventsQuery = `
+            SELECT 
+                event_id,
+                title,
+                category,
+                start_at,
+                end_at,
+                status,
+                base_price,
+                cover_url,
+                tickets_sold,
+                venue_name,
+                venue_city,
+                organizer_account_id,
+                organizer_name,
+                organizer_avatar_url,
+                organizer_rating
+            FROM followed_organizer_events
+            WHERE follower_account_id = $1
+            ORDER BY start_at ASC
+            LIMIT $2 OFFSET $3
+        `;
+
+        const { rows: events } = await query(eventsQuery, [accountId, limit, offset]);
+
+        const countQuery = `
+            SELECT COUNT(*) as total
+            FROM followed_organizer_events
+            WHERE follower_account_id = $1
+        `;
+        const { rows: countRows } = await query(countQuery, [accountId]);
+        const totalCount = parseInt(countRows[0].total);
+
+        const formattedEvents = events.map(event => ({
+            event_id: event.event_id,
+            title: event.title,
+            category: event.category,
+            start_at: event.start_at,
+            end_at: event.end_at,
+            status: event.status,
+            base_price: parseFloat(event.base_price),
+            cover_url: event.cover_url || `https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80`,
+            tickets_sold: event.tickets_sold,
+            venue_name: event.venue_name,
+            venue_city: event.venue_city,
+            organizer: {
+                account_id: event.organizer_account_id,
+                display_name: event.organizer_name,
+                avatar_url: event.organizer_avatar_url,
+                rating: event.organizer_rating ? parseFloat(event.organizer_rating) : null
+            },
+            time_until_event: new Date(event.start_at) - new Date()
+        }));
+
+        res.json({
+            events: formattedEvents,
+            pagination: {
+                total: totalCount,
+                limit: limit,
+                offset: offset,
+                has_more: offset + limit < totalCount
+            }
+        });
+
+    } catch (err) {
+        console.error('Error fetching followed events:', err);
+        res.status(500).json({ error: 'Failed to fetch followed events', details: err.message });
+    }
+};
+
 

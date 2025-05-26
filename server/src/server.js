@@ -3,51 +3,43 @@ import dotenv from "dotenv";
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
 
 import {authRouter} from "./routers/auth-router.js";
 import {userRouter} from "./routers/user-router.js";
 import {adminRouter} from "./routers/admin-router.js";
 import {eventRouter} from "./routers/event-router.js";
 import {organizerRouter} from "./routers/organizer-router.js";
-
-// Get the directory name for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import {venueRouter} from "./routers/venue-router.js";
+import {ticketRouter} from "./routers/ticket-router.js";
+import promoRouter from "./routers/promo-router.js";
+
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirnameCurrent = dirname(__filename);
+
 
 dotenv.config()
 
-const app = express()
+const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from the public directory
-app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
-
 app.use("/api/auth", authRouter);
-app.use("/api/user", userRouter);
-app.use("/api/users", userRouter); 
-app.use("/api/admin", adminRouter);
-app.use("/api/event", eventRouter);
-app.use("/api/organizer", organizerRouter);
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ 
-        message: 'Something went wrong!', 
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
-    });
-});
 app.use("/api/users", userRouter); 
 app.use("/api/admin", adminRouter);
 app.use("/api/event", eventRouter);
 app.use("/api/venue", venueRouter);
+app.use("/api/tickets", ticketRouter);
+app.use("/api/promo", promoRouter);
+app.use("/api/organizer", organizerRouter);
 
+
+app.use('/uploads', express.static(path.join(__dirnameCurrent, '..', 'uploads')));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log("Server listening on port", PORT);
 });
-

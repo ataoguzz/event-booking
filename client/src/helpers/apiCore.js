@@ -88,6 +88,17 @@ class apiClient {
         return axiosInstance.delete(url, config);
     };
 
+    downloadFile = (url, config = {}) => {
+        return axiosInstance.get(url, {
+            ...config,
+            responseType: 'blob',
+            headers: {
+                ...config.headers,
+                'Accept': 'application/pdf,application/octet-stream'
+            }
+        });
+    };
+
     storeToken = (token) => {
         if (token) {
             localStorage.setItem(AUTH_SESSION_KEY, token);

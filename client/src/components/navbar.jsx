@@ -230,14 +230,16 @@ const Navbar = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Button asChild variant="ghost">
-                          <Link to={user.role === "organizer" ? "/profile" : "/wallet"} className="w-full flex items-center">
-                            <User className="mr-2 h-4 w-4" />
-                            {user.role === "organizer" ? "My Profile" : "Account"}
-                          </Link>
-                        </Button>
-                      </DropdownMenuItem>
+                      {user.role === "organizer" && (
+                        <DropdownMenuItem>
+                          <Button asChild variant="ghost">
+                            <Link to="/profile" className="w-full flex items-center">
+                              <User className="mr-2 h-4 w-4" />
+                              Profile
+                            </Link>
+                          </Button>
+                        </DropdownMenuItem>
+                      )}
                       {user.role === "attendee" && (
                           <>
                             <DropdownMenuItem>
@@ -288,14 +290,6 @@ const Navbar = () => {
                             </Button>
                           </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem>
-                        <Button asChild variant="ghost">
-                          <Link to="/settings" className="w-full flex items-center">
-                            <Settings className="mr-2 h-4 w-4" />
-                            Settings
-                          </Link>
-                        </Button>
-                      </DropdownMenuItem>
                       <DropdownMenuItem>
                         <Button asChild variant="ghost">
                           <Link to="/auth/login" className="w-full flex items-center"> {/* temporary logout link */}

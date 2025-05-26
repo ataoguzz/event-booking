@@ -9,12 +9,14 @@ const Signup = React.lazy(() => import("../pages/Auth/Register.jsx"));
 // Home Pages
 const Home = React.lazy(() => import("../pages/Home/index.jsx"));
 const AttendeeHomepage = React.lazy(() => import("../pages/Home/AttendeeHomepage.jsx"));
-const OrganizerHome = React.lazy(() => import("../pages/Home/OrganizerHomepage.jsx"));
 const AdminHomepage = React.lazy(() => import("../pages/Home/AdminHomepage.jsx"));
 
 // Attendee Pages
 const BrowseEvents = React.lazy(() => import("../pages/Attendee/BrowseEvents.jsx"));
 const EventDetails = React.lazy(() => import("../pages/Attendee/EventDetails.jsx"));
+const SeatSelection = React.lazy(() => import("../pages/Attendee/SeatSelection.jsx"));
+const Checkout = React.lazy(() => import("../pages/Attendee/Checkout.jsx"));
+const TicketDetails = React.lazy(() => import("../pages/Attendee/TicketDetails.jsx"));
 const MyTickets = React.lazy(() => import("../pages/Attendee/MyTickets.jsx"));
 const FindOrganizers = React.lazy(() => import("../pages/Attendee/FindOrganizers.jsx"));
 const AttendeeOrganizerProfile = React.lazy(() => import("../pages/Attendee/OrganizerProfile.jsx"));
@@ -42,11 +44,22 @@ const LoadComponent = ({ component }) => (
 );
 
 const AllRoutes = () => {
-    const {user} = useAuth();
+    const {user, isAuthenticated} = useAuth();
+
+    // If we're still loading, don't render anything (handled by parent)
+    if (!user && !isAuthenticated) {
+        return <Navigate to="/auth/login" />;
+    }
+
     return useRoutes([
         {
             path: "/",
-            element: <Navigate to="/home" />
+            element: user ? (
+                user.role === "organizer" ? <Navigate to="/my-events" /> :
+                user.role === "attendee" ? <Navigate to="/browse-events" /> :
+                user.role === "admin" ? <Navigate to="/dashboard" /> :
+                <Navigate to="/home" />
+            ) : <Navigate to="/auth/login" />
         },
         {
             path: "/login",
@@ -65,8 +78,20 @@ const AllRoutes = () => {
             element: user && user.role === "attendee" ? <LoadComponent component={BrowseEvents} /> : <Navigate to="/login" />
         },
         {
-            path: "/events/:eventId",
+            path: "/event/:eventId",
             element: user && user.role === "attendee" ? <LoadComponent component={EventDetails} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/event/:eventId/choose-seat",
+            element: user && user.role === "attendee" ? <LoadComponent component={SeatSelection} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/event/:eventId/checkout",
+            element: user && user.role === "attendee" ? <LoadComponent component={Checkout} /> : <Navigate to="/login" />
+        },
+        {
+            path: "/tickets/:transactionId",
+            element: user && user.role === "attendee" ? <LoadComponent component={TicketDetails} /> : <Navigate to="/login" />
         },
         {
             path: "/my-tickets",
@@ -132,7 +157,12 @@ const AllRoutes = () => {
         },
         {
             path: "/home",
-            element: user ? <LoadComponent component={Home} /> : <Navigate to="/login" />
+            element: user ? (
+                user.role === "organizer" ? <Navigate to="/my-events" /> :
+                user.role === "attendee" ? <Navigate to="/browse-events" /> :
+                user.role === "admin" ? <Navigate to="/dashboard" /> :
+                <LoadComponent component={Home} />
+            ) : <Navigate to="/login" />
         },
         {
             path: "*",
