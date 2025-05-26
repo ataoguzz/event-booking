@@ -81,27 +81,29 @@ export default function ManageVenues() {
     }
   };
 
- 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-  
-    // Build query params
-    const params = new URLSearchParams();
-    if (activeTab !== 'all') params.append('status', activeTab);
-    if (cityFilter && cityFilter !== 'all') params.append('city', cityFilter);
-    if (searchTerm) params.append('search', searchTerm);
-  
-    apiClient.get(`/admin/venuesRequests?${params.toString()}`)
-      .then(res => {
-        setVenueRequests(res.data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load venue requests');
-        setLoading(false);
-      });
-  }, [activeTab, cityFilter, searchTerm]);
+  const [counts, setCounts] = useState({ APPROVED: 0, PENDING: 0, REJECTED: 0 });
+
+useEffect(() => {
+  setLoading(true);
+  setError(null);
+
+  // Build query params
+  const params = new URLSearchParams();
+  if (activeTab !== 'all') params.append('status', activeTab);
+  if (cityFilter && cityFilter !== 'all') params.append('city', cityFilter);
+  if (searchTerm) params.append('search', searchTerm);
+
+  apiClient.get(`/admin/venuesRequests?${params.toString()}`)
+    .then(res => {
+      setVenueRequests(res.data.venues);
+      setCounts(res.data.counts);
+      setLoading(false);
+    })
+    .catch(() => {
+      setError('Failed to load venue requests');
+      setLoading(false);
+    });
+}, [activeTab, cityFilter, searchTerm]);
 
   return (
     <Layout>
@@ -123,15 +125,15 @@ export default function ManageVenues() {
             </TabsTrigger>
             <TabsTrigger value="APPROVED">
               Approved
-              <Badge variant="outline" className="ml-2">{approvedCount}</Badge>
+              <Badge variant="outline" className="ml-2">{counts.APPROVED}</Badge>
             </TabsTrigger>
             <TabsTrigger value="PENDING">
               Pending
-              <Badge variant="outline" className="ml-2">{pendingCount}</Badge>
+              <Badge variant="outline" className="ml-2">{counts.PENDING}</Badge>
             </TabsTrigger>
             <TabsTrigger value="REJECTED">
               Rejected
-              <Badge variant="outline" className="ml-2">{rejectedCount}</Badge>
+              <Badge variant="outline" className="ml-2">{counts.REJECTED}</Badge>
             </TabsTrigger>
           </TabsList>
         </Tabs>

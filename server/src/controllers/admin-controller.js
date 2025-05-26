@@ -1,5 +1,6 @@
 import bcryptjs from "bcryptjs";
 import { query, getClient } from "../utils/db.js";
+import PDFDocument from 'pdfkit';
 
 export const getVenuesRequests = async (req, res, next) => {
     const client = await getClient();
@@ -15,19 +16,16 @@ export const getVenuesRequests = async (req, res, next) => {
         WHERE 1=1
       `;
       const values = [];
-
       let paramIndex = 1;
 
       if (status) {
         queryText += ` AND vr.status = $${paramIndex++}`;
         values.push(status);
       }
-  
       if (city) {
         queryText += ` AND vr.city ILIKE $${paramIndex++}`;
         values.push(city);
       }
-  
       if (search) {
         queryText += `
           AND (
@@ -39,11 +37,42 @@ export const getVenuesRequests = async (req, res, next) => {
         values.push(`%${search.toLowerCase()}%`);
         paramIndex++;
       }
-  
       queryText += ` ORDER BY vr.created_at DESC`;
-  
+
+      // Get filtered requests
       const result = await client.query(queryText, values);
-  
+
+      // Get counts for each status (no filters except city/search)
+      let countQuery = `
+        SELECT status, COUNT(*) as count
+        FROM venue_requests
+        WHERE 1=1
+      `;
+      const countValues = [];
+      let countParamIndex = 1;
+      if (city) {
+        countQuery += ` AND city ILIKE $${countParamIndex++}`;
+        countValues.push(city);
+      }
+      if (search) {
+        countQuery += `
+          AND (
+            LOWER(name) LIKE $${countParamIndex} OR
+            LOWER(city) LIKE $${countParamIndex} OR
+            CAST(request_id AS TEXT) LIKE $${countParamIndex}
+          )
+        `;
+        countValues.push(`%${search.toLowerCase()}%`);
+        countParamIndex++;
+      }
+      countQuery += ` GROUP BY status`;
+
+      const countResult = await client.query(countQuery, countValues);
+      const counts = { APPROVED: 0, PENDING: 0, REJECTED: 0 };
+      countResult.rows.forEach(row => {
+        counts[row.status] = parseInt(row.count, 10);
+      });
+
       const formattedVenues = result.rows.map(row => ({
         id: row.request_id,
         name: row.name,
@@ -58,15 +87,18 @@ export const getVenuesRequests = async (req, res, next) => {
         rows: row.requested_layout_rows,
         columns: row.requested_layout_cols
       }));
-  
-      res.json(formattedVenues);
+
+      res.json({
+        venues: formattedVenues,
+        counts
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal Server Error' });
     } finally {
       client.release();
     }
-  };
+};
 
 
 export const evaluateVenueRequest = async (req, res, next) => {
@@ -420,11 +452,10 @@ export const getDashboardData = async (req, res, next) => {
 
         const revenueQuery = `
             SELECT COALESCE(-SUM(tn.amount), 0) AS revenue
-            FROM transactions tn
-            JOIN tickets tk ON tn.tx_id = tk.tx_id
-            WHERE tk.status IN ('PURCHASED')
-            AND tn.created_at >= $1
-            AND tn.created_at < $2
+              FROM transactions tn
+              WHERE tn.tx_type IN ('TICKET_PURCHASE')
+              AND tn.created_at >= $1
+              AND tn.created_at < $2
         `;
         const revenueResult = await client.query(revenueQuery, [firstDayOfMonth, firstDayOfNextMonth]);
 
@@ -535,4 +566,114 @@ export const getDashboardData = async (req, res, next) => {
     }
 
 }
+
+export const getDashboardReport = async (req, res, next) => {
+  try {
+    const client = await getClient();
+    // 1. Most revenue event
+    const eventRevenueResult = await client.query(`
+      WITH revenue_per_event AS (
+        SELECT e.title, SUM(tn.amount) AS revenue
+        FROM events e
+        JOIN (
+          SELECT DISTINCT tk.event_id, tk.tx_id
+          FROM tickets tk
+          WHERE tk.status IN ('PURCHASED')
+        ) AS valid_txs ON e.event_id = valid_txs.event_id
+        JOIN transactions tn ON valid_txs.tx_id = tn.tx_id
+        GROUP BY e.title
+      )
+      SELECT title, revenue
+      FROM revenue_per_event
+      WHERE revenue = (
+        SELECT MAX(revenue) FROM revenue_per_event
+      )
+    `);
+    const topEvent = eventRevenueResult.rows[0] || null;
+
+    // 2. Most popular event (by tickets sold)
+    const popularEventResult = await client.query(`
+      SELECT e.title, COUNT(tk.ticket_id) AS tickets_sold
+      FROM events e
+      JOIN tickets tk ON e.event_id = tk.event_id
+      GROUP BY e.title
+    `);
+    let mostPopularEvent = null;
+    if (popularEventResult.rows.length > 0) {
+      mostPopularEvent = popularEventResult.rows.reduce((max, row) =>
+        Number(row.tickets_sold) > Number(max.tickets_sold) ? row : max,
+        popularEventResult.rows[0]
+      );
+    }
+
+    // 3. Most active city (by event count)
+    const activeCityResult = await client.query(`
+      SELECT v.city, COUNT(*) AS event_count
+      FROM events e
+      JOIN venues v ON e.venue_id = v.venue_id
+      GROUP BY v.city
+    `);
+    let mostActiveCity = null;
+    if (activeCityResult.rows.length > 0) {
+      mostActiveCity = activeCityResult.rows.reduce((max, row) =>
+        Number(row.event_count) > Number(max.event_count) ? row : max,
+        activeCityResult.rows[0]
+      );
+    }
+
+    // 4. Total revenue
+    const totalRevenueResult = await client.query(`
+      SELECT COALESCE(SUM(tn.amount), 0) AS total
+      FROM transactions tn
+      WHERE tn.tx_type IN ('TICKET_PURCHASE')
+    `);
+    const totalRevenue = totalRevenueResult.rows[0]?.total || 0;
+
+    // 5. Total events
+    const totalEventsResult = await client.query(`SELECT COUNT(*) AS total FROM events`);
+    const totalEvents = totalEventsResult.rows[0]?.total || 0;
+
+    // 6. Total users
+    const totalUsersResult = await client.query(`SELECT COUNT(*) AS total FROM accounts`);
+    const totalUsers = totalUsersResult.rows[0]?.total || 0;
+
+    // Generate PDF
+    const doc = new PDFDocument();
+    let buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', () => {
+      let pdfData = Buffer.concat(buffers);
+      res
+        .writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': 'attachment;filename=dashboard_report.pdf',
+          'Content-Length': pdfData.length,
+        })
+        .end(pdfData);
+    });
+
+    doc.fontSize(20).text('Dashboard Report', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).text('Key Statistics:');
+    doc.moveDown();
+    doc.fontSize(12).text(`Total Revenue: $${totalRevenue}`);
+    doc.text(`Total Events: ${totalEvents}`);
+    doc.text(`Total Users: ${totalUsers}`);
+    doc.moveDown();
+    doc.fontSize(14).text('Top Event by Revenue:');
+    doc.fontSize(12).text(`Event: ${topEvent?.title || 'N/A'}`);
+    doc.text(`Revenue: $${topEvent?.revenue || 0}`);
+    doc.moveDown();
+    doc.fontSize(14).text('Most Popular Event (by Tickets Sold):');
+    doc.fontSize(12).text(`Event: ${mostPopularEvent?.title || 'N/A'}`);
+    doc.text(`Tickets Sold: ${mostPopularEvent?.tickets_sold || 0}`);
+    doc.moveDown();
+    doc.fontSize(14).text('Most Active City (by Event Count):');
+    doc.fontSize(12).text(`City: ${mostActiveCity?.city || 'N/A'}`);
+    doc.text(`Event Count: ${mostActiveCity?.event_count || 0}`);
+    doc.end();
+  } catch (err) {
+    next(err);
+  }
+};
   

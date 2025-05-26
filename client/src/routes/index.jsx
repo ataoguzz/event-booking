@@ -44,6 +44,7 @@ const LoadComponent = ({ component }) => (
 const AllRoutes = () => {
     const {user} = useAuth();
 
+
     return useRoutes([
         {
             path: "/",
