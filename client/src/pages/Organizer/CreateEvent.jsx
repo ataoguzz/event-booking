@@ -21,7 +21,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
-import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash } from "lucide-react";
+import { CalendarIcon, Upload, X, MapPin, PlusCircle, Trash2, DollarSign, Hash, Percent, Tag } from "lucide-react";
 import { cn } from "@/lib/utils.js";
 import { format } from "date-fns";
 // import { v4 as uuidv4 } from 'uuid'; // REMOVE THIS LINE
@@ -76,6 +76,23 @@ const CreateEvent = () => {
     const [venues, setVenues] = useState([]);
     const [venueRequest, setVenueRequest] = useState({name: "", address: "", capacity: "", description: ""});
     const [seatAssignments, setSeatAssignments] = useState({}); // For seated venues
+    
+    // Promo codes state
+    const nextPromoId = useRef(1);
+    const getInitialPromo = () => {
+        const id = nextPromoId.current;
+        nextPromoId.current += 1;
+        return { 
+            id: id, 
+            code: '', 
+            discountType: 'PERCENT', 
+            discountValue: '', 
+            usageLimit: '', 
+            startDate: null, 
+            endDate: null 
+        };
+    };
+    const [promoCodes, setPromoCodes] = useState([]);
 
     // ... (useEffect for fetchVenues remains the same) ...
     useEffect(() => {
@@ -274,6 +291,49 @@ const CreateEvent = () => {
 
     const handleVenueRequest = async () => { /* ... */ };
 
+    // Promo code handlers
+    const handlePromoChange = (id, field, value) => {
+        setPromoCodes(prevPromos =>
+            prevPromos.map(promo =>
+                promo.id === id ? { ...promo, [field]: value } : promo
+            )
+        );
+        
+        // Clear errors for this field if value is being updated successfully
+        if (errors.promoCodes && errors.promoCodes[id] && errors.promoCodes[id][field]) {
+            setErrors(prev => ({
+                ...prev,
+                promoCodes: {
+                    ...prev.promoCodes,
+                    [id]: {
+                        ...prev.promoCodes?.[id],
+                        [field]: null
+                    }
+                }
+            }));
+        }
+    };
+
+    const addPromoCode = () => {
+        const newId = nextPromoId.current;
+        nextPromoId.current += 1;
+        setPromoCodes([...promoCodes, getInitialPromo()]);
+    };
+
+    const removePromoCode = (idToRemove) => {
+        setPromoCodes(promoCodes.filter(promo => promo.id !== idToRemove));
+        
+        // Clean up errors for removed promo
+        if (errors.promoCodes && errors.promoCodes[idToRemove]) {
+            const newPromoErrors = { ...errors.promoCodes };
+            delete newPromoErrors[idToRemove];
+            setErrors(prev => ({
+                ...prev,
+                promoCodes: newPromoErrors
+            }));
+        }
+    };
+
     const validateForm = () => {
         const newErrors = {};
         // Basic event info validation
@@ -386,6 +446,53 @@ const CreateEvent = () => {
             }
         }
 
+        // Validate promo codes
+        if (promoCodes.length > 0) {
+            const promoErrors = {};
+            let hasPromoError = false;
+            const usedCodes = new Set();
+            
+            promoCodes.forEach(promo => {
+                const currentPromoErrors = {};
+                
+                if (!promo.code.trim()) {
+                    currentPromoErrors.code = "Promo code is required.";
+                    hasPromoError = true;
+                } else if (usedCodes.has(promo.code.toUpperCase())) {
+                    currentPromoErrors.code = "Duplicate promo code.";
+                    hasPromoError = true;
+                } else {
+                    usedCodes.add(promo.code.toUpperCase());
+                }
+                
+                if (!promo.discountValue || parseFloat(promo.discountValue) <= 0) {
+                    currentPromoErrors.discountValue = "Discount value must be greater than 0.";
+                    hasPromoError = true;
+                } else if (promo.discountType === 'PERCENT' && parseFloat(promo.discountValue) > 100) {
+                    currentPromoErrors.discountValue = "Percentage discount cannot exceed 100%.";
+                    hasPromoError = true;
+                }
+                
+                if (promo.usageLimit && (parseInt(promo.usageLimit, 10) <= 0 || isNaN(parseInt(promo.usageLimit, 10)))) {
+                    currentPromoErrors.usageLimit = "Usage limit must be a positive number.";
+                    hasPromoError = true;
+                }
+                
+                if (promo.startDate && promo.endDate && new Date(promo.endDate) < new Date(promo.startDate)) {
+                    currentPromoErrors.endDate = "End date must be after start date.";
+                    hasPromoError = true;
+                }
+                
+                if (Object.keys(currentPromoErrors).length > 0) {
+                    promoErrors[promo.id] = currentPromoErrors;
+                }
+            });
+            
+            if (hasPromoError) {
+                newErrors.promoCodes = promoErrors;
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -429,6 +536,16 @@ const CreateEvent = () => {
         // Add seat assignments for seated venues
         if (selectedVenue && selectedVenue.isSeated && Object.keys(seatAssignments).length > 0) {
             data.append('seatAssignments', JSON.stringify(seatAssignments));
+        }
+
+        // Add promo codes if any
+        if (promoCodes.length > 0) {
+            const promoCodesData = promoCodes.map(({ id, ...rest }) => ({
+                ...rest,
+                startDate: rest.startDate ? format(rest.startDate, "yyyy-MM-dd") : null,
+                endDate: rest.endDate ? format(rest.endDate, "yyyy-MM-dd") : null
+            }));
+            data.append('promoCodesString', JSON.stringify(promoCodesData));
         }
 
         formData.images.forEach(imageObj => {
@@ -697,6 +814,208 @@ const CreateEvent = () => {
                             errors={errors}
                         />
                     )}
+
+                    {/* Promo Codes Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Promo Codes (Optional)</CardTitle>
+                            <CardDescription>
+                                Create discount codes for your event. These codes can be used by attendees to get discounts on ticket purchases.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {promoCodes.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <Tag className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                                    <p>No promo codes created yet.</p>
+                                    <p className="text-sm">Click "Add Promo Code" to create discount codes for your event.</p>
+                                </div>
+                            ) : (
+                                promoCodes.map((promo, index) => (
+                                    <Card key={promo.id} className="p-4 space-y-4 bg-muted/40">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-base font-semibold">Promo Code {index + 1}</Label>
+                                            <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                onClick={() => removePromoCode(promo.id)} 
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-1" /> Remove
+                                            </Button>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {/* Promo Code */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`promoCode-${promo.id}`}>Code *</Label>
+                                                <div className="relative">
+                                                    <Tag className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        id={`promoCode-${promo.id}`}
+                                                        value={promo.code}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'code', e.target.value.toUpperCase())}
+                                                        placeholder="SAVE20"
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.code ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.code && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].code}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Discount Type */}
+                                            <div className="space-y-2">
+                                                <Label>Discount Type *</Label>
+                                                <Select 
+                                                    value={promo.discountType} 
+                                                    onValueChange={(value) => handlePromoChange(promo.id, 'discountType', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="PERCENT">Percentage (%)</SelectItem>
+                                                        <SelectItem value="FIXED">Fixed Amount ($)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            {/* Discount Value */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`discountValue-${promo.id}`}>
+                                                    Discount Value * {promo.discountType === 'PERCENT' ? '(%)' : '($)'}
+                                                </Label>
+                                                <div className="relative">
+                                                    {promo.discountType === 'PERCENT' ? (
+                                                        <Percent className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    ) : (
+                                                        <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                    <Input
+                                                        id={`discountValue-${promo.id}`}
+                                                        type="number"
+                                                        value={promo.discountValue}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'discountValue', e.target.value)}
+                                                        placeholder={promo.discountType === 'PERCENT' ? "20" : "10.00"}
+                                                        step={promo.discountType === 'PERCENT' ? "1" : "0.01"}
+                                                        min="0"
+                                                        max={promo.discountType === 'PERCENT' ? "100" : undefined}
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.discountValue ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.discountValue && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].discountValue}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Usage Limit */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`usageLimit-${promo.id}`}>Usage Limit</Label>
+                                                <div className="relative">
+                                                    <Hash className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        id={`usageLimit-${promo.id}`}
+                                                        type="number"
+                                                        value={promo.usageLimit}
+                                                        onChange={(e) => handlePromoChange(promo.id, 'usageLimit', e.target.value)}
+                                                        placeholder="100 (optional)"
+                                                        min="1"
+                                                        step="1"
+                                                        className={`pl-8 ${errors.promoCodes?.[promo.id]?.usageLimit ? "border-red-500" : ""}`}
+                                                    />
+                                                </div>
+                                                {errors.promoCodes?.[promo.id]?.usageLimit && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].usageLimit}</p>
+                                                )}
+                                                <p className="text-xs text-muted-foreground">Leave empty for unlimited uses</p>
+                                            </div>
+
+                                            {/* Start Date */}
+                                            <div className="space-y-2">
+                                                <Label>Start Date (Optional)</Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={cn(
+                                                                "w-full justify-start text-left font-normal",
+                                                                !promo.startDate && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {promo.startDate ? format(promo.startDate, "PPP") : "Select start date"}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar 
+                                                            mode="single" 
+                                                            selected={promo.startDate} 
+                                                            onSelect={(date) => handlePromoChange(promo.id, 'startDate', date)} 
+                                                            initialFocus 
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
+
+                                            {/* End Date */}
+                                            <div className="space-y-2">
+                                                <Label>End Date (Optional)</Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={cn(
+                                                                "w-full justify-start text-left font-normal",
+                                                                !promo.endDate && "text-muted-foreground",
+                                                                errors.promoCodes?.[promo.id]?.endDate && "border-red-500"
+                                                            )}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {promo.endDate ? format(promo.endDate, "PPP") : "Select end date"}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar 
+                                                            mode="single" 
+                                                            selected={promo.endDate} 
+                                                            onSelect={(date) => handlePromoChange(promo.id, 'endDate', date)} 
+                                                            initialFocus 
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                                {errors.promoCodes?.[promo.id]?.endDate && (
+                                                    <p className="text-xs text-red-500">{errors.promoCodes[promo.id].endDate}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Promo Code Preview */}
+                                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="text-sm">
+                                                <span className="font-medium">Preview: </span>
+                                                {promo.code && promo.discountValue ? (
+                                                    <span className="text-blue-700">
+                                                        Code "{promo.code}" gives {promo.discountType === 'PERCENT' ? `${promo.discountValue}%` : `$${promo.discountValue}`} off
+                                                        {promo.usageLimit && ` (limited to ${promo.usageLimit} uses)`}
+                                                        {promo.startDate && ` starting ${format(promo.startDate, "MMM d, yyyy")}`}
+                                                        {promo.endDate && ` until ${format(promo.endDate, "MMM d, yyyy")}`}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">Complete the fields above to see preview</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))
+                            )}
+                            
+                            <Button type="button" variant="outline" onClick={addPromoCode} className="w-full mt-4">
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Promo Code
+                            </Button>
+                        </CardContent>
+                    </Card>
 
                     {/* Event Images Card */}
                     <Card>

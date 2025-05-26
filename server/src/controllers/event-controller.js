@@ -798,6 +798,16 @@ export const purchaseTickets = async (req, res) => {
 
 const mapEventTypeToCategory = (eventType) => {
     const mapping = {
+        // Frontend sends these values
+        "CONCERT": 'CONCERT',
+        "THEATER": 'THEATER',
+        "SPORTS": 'SPORTS',
+        "STANDUP": 'STANDUP',
+        "CONFERENCE": 'CONFERENCE',
+        "WORKSHOP": 'WORKSHOP',
+        "FESTIVAL": 'FESTIVAL',
+        "OTHER": 'OTHER',
+        // Legacy mappings (in case old format is still used)
         "Concert": 'CONCERT',
         "Theater": 'THEATER',
         "Stand-up Comedy": 'STANDUP',
@@ -817,7 +827,8 @@ export const createEvent = async (req, res, next) => {
         startDate, startTime, endDate, endTime,
         venue, rules, organizerAccountId,
         ticketTiersData: ticketTiersDataString,
-        promoCodes: promoCodesString
+        promoCodes: promoCodesString,
+        seatAssignments: seatAssignmentsString
     } = req.body;
 
     if (!organizerAccountId) {
@@ -883,7 +894,7 @@ export const createEvent = async (req, res, next) => {
                     throw new Error(`Invalid start date for promo code ${promo.code}.`);
                 }
                 if (promo.endDate && isNaN(new Date(promo.endDate).getTime())) {
-                    throw new Error(`Invalid end date for promo code ${promo.code}.`);
+                    throw new Error(`Invalid end date for promo code ${promo.endDate}.`);
                 }
                 if (promo.startDate && promo.endDate && new Date(promo.endDate) < new Date(promo.startDate)) {
                     throw new Error(`End date must be after start date for promo code ${promo.code}.`);
@@ -891,6 +902,19 @@ export const createEvent = async (req, res, next) => {
             }
         } catch (e) {
             return res.status(400).json({ message: `Invalid promo codes data: ${e.message}` });
+        }
+    }
+
+    // Parse seat assignments for seated venues
+    let seatAssignments = {};
+    if (seatAssignmentsString) {
+        try {
+            seatAssignments = JSON.parse(seatAssignmentsString);
+            if (typeof seatAssignments !== 'object' || seatAssignments === null) {
+                throw new Error("Seat assignments must be an object.");
+            }
+        } catch (e) {
+            return res.status(400).json({ message: `Invalid seat assignments data: ${e.message}` });
         }
     }
 
@@ -979,6 +1003,9 @@ export const createEvent = async (req, res, next) => {
         });
         await Promise.all(imageInsertPromises);
 
+        // Create a mapping of tier names to tier IDs for seat assignments
+        const tierNameToIdMap = {};
+        
         for (const tier of ticketTiers) {
             const tierInsertQuery = `
                 INSERT INTO event_ticket_tiers (event_id, tier_name, price, quantity)
@@ -992,26 +1019,9 @@ export const createEvent = async (req, res, next) => {
                 parseInt(tier.quantity)
             ]);
             const newTierId = tierResult.rows[0].tier_id;
+            tierNameToIdMap[tier.tierName] = newTierId;
 
-            if (isSeatedVenue) {
-                // For seated venues, assign seats to tickets
-                const seatAssignmentQuery = `
-                    INSERT INTO tickets (event_id, seat_id, tier_id, status)
-                    SELECT $1, s.seat_id, $2, 'AVAILABLE'
-                    FROM seats s
-                    LEFT JOIN tickets t ON t.event_id = $1 AND t.seat_id = s.seat_id
-                    WHERE s.venue_id = $3
-                    AND t.ticket_id IS NULL
-                    ORDER BY s.section, s.row_label, CAST(s.seat_number AS INT)
-                    LIMIT $4;
-                `;
-                await client.query(seatAssignmentQuery, [
-                    newEventId,
-                    newTierId,
-                    venueId,
-                    parseInt(tier.quantity)
-                ]);
-            } else {
+            if (!isSeatedVenue) {
                 // For non-seated venues, create tickets without seat assignments
                 const ticketInsertPromises = [];
                 for (let i = 0; i < parseInt(tier.quantity); i++) {
@@ -1023,6 +1033,47 @@ export const createEvent = async (req, res, next) => {
                     );
                 }
                 await Promise.all(ticketInsertPromises);
+            }
+        }
+
+        // For seated venues, handle seat assignments
+        if (isSeatedVenue) {
+            if (Object.keys(seatAssignments).length > 0) {
+                // Use organizer's specific seat assignments
+                const seatAssignmentPromises = [];
+                for (const [seatId, tierName] of Object.entries(seatAssignments)) {
+                    const tierId = tierNameToIdMap[tierName];
+                    if (tierId) {
+                        seatAssignmentPromises.push(
+                            client.query(
+                                `INSERT INTO tickets (event_id, seat_id, tier_id, status) VALUES ($1, $2, $3, 'AVAILABLE')`,
+                                [newEventId, parseInt(seatId), tierId]
+                            )
+                        );
+                    }
+                }
+                await Promise.all(seatAssignmentPromises);
+            } else {
+                // Fallback: assign seats sequentially if no specific assignments provided
+                for (const tier of ticketTiers) {
+                    const tierId = tierNameToIdMap[tier.tierName];
+                    const seatAssignmentQuery = `
+                        INSERT INTO tickets (event_id, seat_id, tier_id, status)
+                        SELECT $1, s.seat_id, $2, 'AVAILABLE'
+                        FROM seats s
+                        LEFT JOIN tickets t ON t.event_id = $1 AND t.seat_id = s.seat_id
+                        WHERE s.venue_id = $3
+                        AND t.ticket_id IS NULL
+                        ORDER BY s.section, s.row_label, CAST(s.seat_number AS INT)
+                        LIMIT $4;
+                    `;
+                    await client.query(seatAssignmentQuery, [
+                        newEventId,
+                        tierId,
+                        venueId,
+                        parseInt(tier.quantity)
+                    ]);
+                }
             }
         }
 
